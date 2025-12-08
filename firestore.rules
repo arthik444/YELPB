@@ -1,0 +1,36 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Rooms collection
+    match /rooms/{roomCode} {
+      // Anyone can read room data
+      allow read: if true;
+
+      // Anyone can create a room
+      allow create: if true;
+
+      // Anyone can update room data (for joining, updating manifest, etc.)
+      allow update: if true;
+
+      // Events subcollection (proposals, locks, joins)
+      match /events/{eventId} {
+        // Anyone can read events
+        allow read: if true;
+
+        // Anyone can create events
+        allow create: if true;
+      }
+
+      // Votes subcollection (swipe voting)
+      match /votes/{userId} {
+        // Anyone can read votes
+        allow read: if true;
+
+        // Anyone can write their own vote
+        allow write: if true;
+      }
+    }
+  }
+}
