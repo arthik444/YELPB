@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Lock, Send, Sparkles, Copy, Check, Users, Zap, Bell, MapPin, Apple, ChevronDown, ChevronUp } from 'lucide-react';
+import { Lock, Send, Sparkles, Copy, Check, Users, Zap, Bell, MapPin, Apple, ChevronDown, ChevronUp, CheckCircle } from 'lucide-react';
 import { MultimodalChat } from './MultimodalChat';
+import { GroupMap } from './GroupMap';
 import { sessionService, SessionUser, UserVote } from '../services/sessionService';
-
+import { useGeolocation } from '../hooks/useGeolocation';
 interface LobbyScreenProps {
   sessionCode: string;
   onNavigate: (preferences: {
@@ -15,6 +16,7 @@ interface LobbyScreenProps {
     bookingDate: string;
     bookingTime: string;
     partySize: number;
+    isOwner: boolean;
   }) => void;
 }
 
@@ -63,6 +65,7 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
   const [showOnlineUsers, setShowOnlineUsers] = useState(false);
   const [currentUserId] = useState(() => `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
   const [hoveredUserId, setHoveredUserId] = useState<string | null>(null);
+  const [isOwner, setIsOwner] = useState(false); // Track if current user is session owner
 
   // Multi-user voting state from Firebase
   const [userVotes, setUserVotes] = useState<{
@@ -78,6 +81,33 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
     dietary: {},
     distance: {}
   });
+
+  // Get current user's location for the group map
+  const { location: userLocation, requestLocation } = useGeolocation(true);
+
+  // Convert distance string to miles number for map
+  const distanceToMiles = (dist: string): number => {
+    const match = dist.match(/(\d+\.?\d*)/);
+    return match ? parseFloat(match[1]) : 2;
+  };
+
+  // Generate user locations for map (using current user + simulated positions for demo)
+  const mapUsers = onlineUsers.map((user, index) => ({
+    id: user.id,
+    name: user.name,
+    color: user.color.includes('orange') ? '#F97316' :
+      user.color.includes('purple') ? '#a855f7' :
+        user.color.includes('blue') ? '#3b82f6' :
+          user.color.includes('green') ? '#22c55e' :
+            user.color.includes('yellow') ? '#eab308' : '#ec4899',
+    latitude: userLocation?.latitude
+      ? userLocation.latitude + (Math.random() - 0.5) * 0.02 * (index + 1)
+      : 37.7749 + (Math.random() - 0.5) * 0.02 * (index + 1),
+    longitude: userLocation?.longitude
+      ? userLocation.longitude + (Math.random() - 0.5) * 0.02 * (index + 1)
+      : -122.4194 + (Math.random() - 0.5) * 0.02 * (index + 1),
+    isCurrentUser: user.id === currentUserId
+  }));
 
   // Firebase: Join session and subscribe to updates
   useEffect(() => {
@@ -133,6 +163,11 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
       }
       if (data.locked !== undefined) {
         setLocked(data.locked);
+      }
+      // Check if current user is the session owner
+      if ((data as any).ownerId) {
+        setIsOwner((data as any).ownerId === currentUserId);
+        console.log('👑 Owner check:', { ownerId: (data as any).ownerId, currentUserId, isOwner: (data as any).ownerId === currentUserId });
       }
       // Also get users from main document (backup method)
       if (data.users) {
@@ -190,6 +225,75 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
   // Get voters for an option
   const getVoters = (category: keyof typeof userVotes, value: string): string[] => {
     return (userVotes[category][value] || []).map(v => v.userName);
+  };
+
+  // Smart preference merging for group consensus
+  const getMergedPreferences = () => {
+    const budgetRank = ['$', '$$', '$$$', '$$$$'];
+    const distanceRank = ['0.5 mi', '1 mi', '2 mi', '5 mi', '10 mi'];
+
+    // Helper: Get top voted options (handles ties)
+    const getTopVoted = (category: keyof typeof userVotes, options: string[]): string[] => {
+      const voteCounts = options.map(opt => ({
+        option: opt,
+        count: getVoteCount(category, opt)
+      })).filter(v => v.count > 0);
+
+      if (voteCounts.length === 0) return [];
+
+      const maxVotes = Math.max(...voteCounts.map(v => v.count));
+      return voteCounts.filter(v => v.count === maxVotes).map(v => v.option);
+    };
+
+    // Budget: Use LOWEST voted (no one gets priced out)
+    const budgetVotes = getTopVoted('budget', budgetOptions);
+    let mergedBudget = budget; // fallback to user's selection
+    if (budgetVotes.length > 0) {
+      // Find the lowest budget among top votes
+      mergedBudget = budgetVotes.reduce((lowest, current) =>
+        budgetRank.indexOf(current) < budgetRank.indexOf(lowest) ? current : lowest
+      );
+    }
+
+    // Cuisine: Include ALL top voted (ties included)
+    const cuisineVotes = getTopVoted('cuisine', cuisineOptions);
+    const mergedCuisine = cuisineVotes.length > 0 ? cuisineVotes.join(' ') : cuisine;
+
+    // Vibe: Include ALL top voted (ties included)
+    const vibeVotes = getTopVoted('vibe', vibeOptions);
+    const mergedVibe = vibeVotes.length > 0 ? vibeVotes.join(' ') : vibe;
+
+    // Dietary: Use MOST restrictive (if anyone needs it, include it)
+    const dietaryPriority = ['Vegan', 'Vegetarian', 'Gluten-Free', 'Halal', 'Kosher', 'None'];
+    let mergedDietary = dietary;
+    for (const diet of dietaryPriority) {
+      if (getVoteCount('dietary', diet) > 0) {
+        mergedDietary = diet;
+        break;
+      }
+    }
+
+    // Distance: Use HIGHEST voted (include all locations)
+    const distanceVotes = getTopVoted('distance', distanceOptions);
+    let mergedDistance = distance;
+    if (distanceVotes.length > 0) {
+      mergedDistance = distanceVotes.reduce((highest, current) =>
+        distanceRank.indexOf(current) > distanceRank.indexOf(highest) ? current : highest
+      );
+    }
+
+    return {
+      cuisine: mergedCuisine,
+      budget: mergedBudget,
+      vibe: mergedVibe,
+      dietary: mergedDietary,
+      distance: mergedDistance,
+      // Include info about ties for display
+      hasCuisineTie: cuisineVotes.length > 1,
+      hasVibeTie: vibeVotes.length > 1,
+      cuisineOptions: cuisineVotes,
+      vibeOptions: vibeVotes
+    };
   };
 
   useEffect(() => {
