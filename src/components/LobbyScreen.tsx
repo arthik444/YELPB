@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Lock, Send, Sparkles, Copy, Check, Users, Zap, Bell, MapPin, Apple, ChevronDown, ChevronUp, CheckCircle, X, MessageSquare } from 'lucide-react';
+import { Lock, Send, Sparkles, Copy, Check, Users, Zap, Bell, MapPin, Apple, ChevronDown, ChevronUp, CheckCircle, X, MessageSquare, Image as ImageIcon, Mic } from 'lucide-react';
 import { MultimodalChat } from './MultimodalChat';
 import { GroupMap } from './GroupMap';
 import { sessionService, SessionUser, UserVote } from '../services/sessionService';
@@ -71,6 +71,18 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
   const [currentUserId] = useState(() => `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
   const [hoveredUserId, setHoveredUserId] = useState<string | null>(null);
   const [isOwner, setIsOwner] = useState(false); // Track if current user is session owner
+
+  // Chat handlers exposed from MultimodalChat
+  const [chatHandlers, setChatHandlers] = useState<{
+    message: string;
+    setMessage: (msg: string) => void;
+    handleSendMessage: () => void;
+    handleImageSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    startRecording: () => void;
+    stopRecording: () => void;
+    isRecording: boolean;
+    fileInputRef: React.RefObject<HTMLInputElement>;
+  } | null>(null);
 
   // Multi-user voting state from Firebase
   const [userVotes, setUserVotes] = useState<{
@@ -921,7 +933,7 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
                   <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => onNavigate({ cuisine, budget, vibe, dietary, distance, bookingDate, bookingTime, partySize })}
+                    onClick={() => onNavigate({ cuisine, budget, vibe, dietary, distance, bookingDate, bookingTime, partySize, isOwner })}
                     className="relative w-full overflow-hidden rounded-lg py-3.5 font-bold text-white border border-orange-600"
                     style={{ backgroundColor: '#f97316', minHeight: '52px', fontSize: '15px' }}
                   >
@@ -966,47 +978,146 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="flex-1 overflow-hidden"
+            className="flex-1 flex flex-col"
           >
-            <div className="h-full">
-              <MultimodalChat
-                preferences={{
-                  cuisine,
-                  budget,
-                  vibe,
-                  distance,
-                  dietary
-                }}
-                activities={activities}
-                onlineUsers={onlineUsers}
-                userVotes={userVotes}
-                sessionCode={sessionCode}
-                minimized={false}
-                onToggleMinimized={() => { }} // No-op since we're in full screen mode
-                onPreferencesDetected={(prefs) => {
-                  // Auto-populate preferences from AI analysis
-                  if (prefs.cuisine) {
-                    setCuisine(prefs.cuisine);
-                    updateVote('cuisine', prefs.cuisine);
-                    addActivity(`AI suggested ${prefs.cuisine} cuisine`);
-                  }
-                  if (prefs.budget) {
-                    setBudget(prefs.budget);
-                    updateVote('budget', prefs.budget);
-                    addActivity(`AI suggested ${prefs.budget} budget`);
-                  }
-                  if (prefs.vibe) {
-                    setVibe(prefs.vibe);
-                    updateVote('vibe', prefs.vibe);
-                    addActivity(`AI suggested ${prefs.vibe} vibe`);
-                  }
-                  if (prefs.dietary) {
-                    setDietary(prefs.dietary);
-                    updateVote('dietary', prefs.dietary);
-                    addActivity(`AI suggested ${prefs.dietary} dietary preference`);
-                  }
-                }}
-              />
+            <MultimodalChat
+              preferences={{
+                cuisine,
+                budget,
+                vibe,
+                distance,
+                dietary
+              }}
+              activities={activities}
+              onlineUsers={onlineUsers}
+              userVotes={userVotes}
+              sessionCode={sessionCode}
+              minimized={false}
+              fullScreenMode={true}
+              onToggleMinimized={() => { }} // No-op since we're in full screen mode
+              onPreferencesDetected={(prefs) => {
+                // Auto-populate preferences from AI analysis
+                if (prefs.cuisine) {
+                  setCuisine(prefs.cuisine);
+                  updateVote('cuisine', prefs.cuisine);
+                  addActivity(`AI suggested ${prefs.cuisine} cuisine`);
+                }
+                if (prefs.budget) {
+                  setBudget(prefs.budget);
+                  updateVote('budget', prefs.budget);
+                  addActivity(`AI suggested ${prefs.budget} budget`);
+                }
+                if (prefs.vibe) {
+                  setVibe(prefs.vibe);
+                  updateVote('vibe', prefs.vibe);
+                  addActivity(`AI suggested ${prefs.vibe} vibe`);
+                }
+                if (prefs.dietary) {
+                  setDietary(prefs.dietary);
+                  updateVote('dietary', prefs.dietary);
+                  addActivity(`AI suggested ${prefs.dietary} dietary preference`);
+                }
+              }}
+              onGetChatHandlers={(handlers) => setChatHandlers(handlers)}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Mobile Search Bar - Above Nav Bar (Chat View Only) */}
+      <AnimatePresence>
+        {activeView === 'chat' && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            className="fixed left-0 right-0 z-40"
+            style={{
+              bottom: '80px', // More space above nav bar
+              backgroundColor: '#ffffff',
+              borderTop: '1px solid #e5e7eb',
+              boxShadow: '0 -2px 12px rgba(0, 0, 0, 0.08)'
+            }}
+          >
+            <div className="px-3 py-2.5">
+              <div className="flex items-center gap-1.5">
+                {/* Hidden File Input */}
+                <input
+                  type="file"
+                  ref={chatHandlers?.fileInputRef}
+                  onChange={chatHandlers?.handleImageSelect}
+                  accept="image/*"
+                  className="hidden"
+                  style={{ display: 'none' }}
+                />
+
+                {/* Image Button */}
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => chatHandlers?.fileInputRef.current?.click()}
+                  className="flex-shrink-0 w-9 h-9 flex items-center justify-center"
+                  title="Upload image"
+                >
+                  <ImageIcon className="h-5 w-5" style={{ color: '#6b7280' }} />
+                </motion.button>
+
+                {/* Voice Button */}
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => {
+                    if (chatHandlers?.isRecording) {
+                      chatHandlers.stopRecording();
+                    } else {
+                      chatHandlers?.startRecording();
+                    }
+                  }}
+                  className="flex-shrink-0 w-9 h-9 flex items-center justify-center"
+                  title={chatHandlers?.isRecording ? "Stop recording" : "Voice input"}
+                >
+                  <Mic className="h-5 w-5" style={{ color: chatHandlers?.isRecording ? '#ef4444' : '#6b7280' }} />
+                </motion.button>
+
+                {/* Text Input */}
+                <input
+                  type="text"
+                  value={chatHandlers?.message || ''}
+                  onChange={(e) => chatHandlers?.setMessage(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && chatHandlers?.message.trim()) {
+                      chatHandlers.handleSendMessage();
+                    }
+                  }}
+                  placeholder="Ask me anything..."
+                  className="flex-1 px-4 py-2.5 rounded-xl border-2 text-base focus:outline-none transition-all"
+                  style={{
+                    backgroundColor: '#f9fafb',
+                    borderColor: '#d1d5db',
+                    color: '#1C1917'
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = '#F05A28';
+                    e.currentTarget.style.backgroundColor = '#ffffff';
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = '#d1d5db';
+                    e.currentTarget.style.backgroundColor = '#f9fafb';
+                  }}
+                />
+
+                {/* Send Button */}
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => chatHandlers?.handleSendMessage()}
+                  disabled={!chatHandlers?.message.trim()}
+                  className="flex-shrink-0 w-9 h-9 flex items-center justify-center transition-opacity"
+                  style={{
+                    opacity: chatHandlers?.message.trim() ? 1 : 0.4
+                  }}
+                >
+                  <Send className="h-5 w-5" style={{ color: '#F05A28' }} />
+                </motion.button>
+              </div>
             </div>
           </motion.div>
         )}
@@ -1104,7 +1215,7 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
           display: none;
         }
       `}</style>
-    </div>
+    </div >
   );
 }
 

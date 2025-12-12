@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, Mic, Image as ImageIcon, X, Loader2, ChevronDown, MessageCircle, Sparkles } from 'lucide-react';
+import { Send, Mic, Image as ImageIcon, X, Loader2, ChevronDown, MessageCircle, Sparkles, MessageSquare } from 'lucide-react';
 import { apiService } from '../services/api';
 
 interface Message {
@@ -52,12 +52,24 @@ interface MultimodalChatProps {
   };
   sessionCode?: string;
   minimized?: boolean;
+  fullScreenMode?: boolean; // Mobile full-screen mode
   onToggleMinimized?: () => void;
   onPreferencesDetected?: (prefs: {
     cuisine?: string;
     budget?: string;
     vibe?: string;
     dietary?: string;
+  }) => void;
+  // Expose chat handlers for external control
+  onGetChatHandlers?: (handlers: {
+    message: string;
+    setMessage: (msg: string) => void;
+    handleSendMessage: () => void;
+    handleImageSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    startRecording: () => void;
+    stopRecording: () => void;
+    isRecording: boolean;
+    fileInputRef: React.RefObject<HTMLInputElement>;
   }) => void;
 }
 
@@ -68,8 +80,10 @@ export function MultimodalChat({
   userVotes,
   sessionCode,
   minimized = false,
+  fullScreenMode = false,
   onToggleMinimized,
-  onPreferencesDetected
+  onPreferencesDetected,
+  onGetChatHandlers
 }: MultimodalChatProps) {
   const getWelcomeMessage = () => {
     if (onlineUsers.length > 1) {
@@ -91,10 +105,10 @@ export function MultimodalChat({
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Build session context from activities and votes
   const buildSessionContext = (): string => {
@@ -659,12 +673,143 @@ export function MultimodalChat({
     }
   };
 
+  // Expose handlers to parent component (placed after all functions are defined)
+  useEffect(() => {
+    if (onGetChatHandlers) {
+      onGetChatHandlers({
+        message,
+        setMessage,
+        handleSendMessage,
+        handleImageSelect,
+        startRecording,
+        stopRecording,
+        isRecording,
+        fileInputRef
+      });
+    }
+  }, [message, isRecording]);
+
+  // Full-screen mobile mode
+  if (fullScreenMode) {
+    return (
+      <div className="flex flex-col h-full w-full bg-gray-100">
+        {/* Messages Area - scrollable with padding for search bar */}
+        <div className="flex-1 overflow-y-auto px-4 py-6 bg-gray-100" style={{
+          paddingBottom: '160px', // Space for search bar + nav bar
+          WebkitOverflowScrolling: 'touch' // Smooth scrolling on iOS
+        }}>
+          {messages.length === 0 ? (
+            // Empty state
+            <div className="flex flex-col items-center justify-center h-full text-center px-6">
+              <div className="w-20 h-20 rounded-full mb-6 flex items-center justify-center" style={{ backgroundColor: '#F05A28' }}>
+                <MessageSquare className="h-10 w-10" style={{ color: '#ffffff' }} />
+              </div>
+              <h3 className="text-2xl font-bold mb-3" style={{ color: '#1C1917' }}>Chat with AI Assistant</h3>
+              <p className="text-base mb-6" style={{ color: '#6b7280' }}>
+                Ask about restaurants, get recommendations, or just chat!
+              </p>
+              <div className="space-y-3 w-full max-w-sm">
+                <button
+                  onClick={() => {
+                    setMessage("What Italian restaurants are nearby?");
+                  }}
+                  className="w-full text-left px-5 py-4 rounded-2xl shadow-md transition-all"
+                  style={{ backgroundColor: '#ffffff', border: '2px solid #d1d5db', color: '#1C1917' }}
+                >
+                  <p className="text-base font-medium">💭 "What Italian restaurants are nearby?"</p>
+                </button>
+                <button
+                  onClick={() => {
+                    setMessage("Find me a romantic dinner spot");
+                  }}
+                  className="w-full text-left px-5 py-4 rounded-2xl shadow-md transition-all"
+                  style={{ backgroundColor: '#ffffff', border: '2px solid #d1d5db', color: '#1C1917' }}
+                >
+                  <p className="text-base font-medium">🕯️ "Find me a romantic dinner spot"</p>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4 pb-4">
+              <AnimatePresence mode="popLayout">
+                {messages.map((msg) => (
+                  <motion.div
+                    key={msg.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className="max-w-[80%] rounded-2xl px-5 py-4 shadow-lg"
+                      style={{
+                        backgroundColor: msg.sender === 'ai' ? '#ffffff' : '#1C1917',
+                        color: msg.sender === 'ai' ? '#1C1917' : '#ffffff',
+                        border: msg.sender === 'ai' ? '2px solid #d1d5db' : 'none'
+                      }}
+                    >
+                      <p className="text-base leading-relaxed">{msg.text}</p>
+                    </div>
+                  </motion.div>
+                ))}
+                {isTyping && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
+                    <div className="rounded-2xl border-2 px-5 py-4 shadow-lg" style={{ backgroundColor: '#ffffff', borderColor: '#d1d5db' }}>
+                      <div className="flex gap-2">
+                        {[0, 1, 2].map((i) => (
+                          <motion.div
+                            key={i}
+                            className="h-3 w-3 rounded-full"
+                            style={{ backgroundColor: '#6b7280' }}
+                            animate={{ y: [0, -8, 0] }}
+                            transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.2 }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              <div ref={messagesEndRef} />
+            </div>
+          )}
+        </div>
+
+        {/* Image Preview */}
+        {imagePreview && (
+          <div className="flex-shrink-0 border-t-2 px-4 py-4" style={{ borderColor: '#d1d5db', backgroundColor: '#ffffff' }}>
+            <div className="relative inline-block">
+              <img src={imagePreview} alt="Preview" className="h-28 w-28 rounded-2xl object-cover shadow-lg border-2" style={{ borderColor: '#d1d5db' }} />
+              <button
+                onClick={() => {
+                  setSelectedImage(null);
+                  setImagePreview(null);
+                }}
+                className="absolute -right-3 -top-3 rounded-full p-2 shadow-xl"
+                style={{ backgroundColor: '#ef4444', color: '#ffffff' }}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Hide scrollbar CSS */}
+        <style>{`
+          .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  //Original floating bubble mode
   return (
     <motion.div
       initial={{ scale: 0, opacity: 0 }}
       animate={{
         scale: 1,
-        opacity: 1,
         borderRadius: minimized ? '9999px' : '16px'
       }}
       transition={{
@@ -687,8 +832,8 @@ export function MultimodalChat({
       <button
         onClick={onToggleMinimized}
         className={`flex items-center justify-center transition-all ${minimized
-            ? 'w-full h-full rounded-full bg-gradient-to-br from-[#F97316] to-[#fb923c] hover:scale-110 shadow-lg shadow-orange-500/50'
-            : 'w-full border-b border-white/5 bg-gradient-to-r from-orange-500/10 to-transparent px-4 py-2.5 hover:from-orange-500/15'
+          ? 'w-full h-full rounded-full bg-gradient-to-br from-[#F97316] to-[#fb923c] hover:scale-110 shadow-lg shadow-orange-500/50'
+          : 'w-full border-b border-white/5 bg-gradient-to-r from-orange-500/10 to-transparent px-4 py-2.5 hover:from-orange-500/15'
           }`}
       >
         {minimized ? (
@@ -755,8 +900,8 @@ export function MultimodalChat({
                   >
                     <div
                       className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${msg.sender === 'ai'
-                          ? 'border border-green-500/20 bg-gradient-to-br from-zinc-900 to-zinc-800/50 text-gray-100 shadow-lg shadow-green-500/10'
-                          : 'bg-gradient-to-r from-[#F97316] to-[#fb923c] text-white shadow-lg shadow-orange-500/20'
+                        ? 'border border-green-500/20 bg-gradient-to-br from-zinc-900 to-zinc-800/50 text-gray-100 shadow-lg shadow-green-500/10'
+                        : 'bg-gradient-to-r from-[#F97316] to-[#fb923c] text-white shadow-lg shadow-orange-500/20'
                         }`}
                       style={{
                         fontFamily: msg.sender === 'ai' ? 'Montserrat, sans-serif' : 'inherit',
@@ -862,8 +1007,8 @@ export function MultimodalChat({
                   whileTap={{ scale: 0.95 }}
                   onClick={isRecording ? stopRecording : startRecording}
                   className={`rounded-lg p-2 transition-all ${isRecording
-                      ? 'bg-red-500 animate-pulse'
-                      : 'bg-zinc-900/80 hover:bg-zinc-800'
+                    ? 'bg-red-500 animate-pulse'
+                    : 'bg-zinc-900/80 hover:bg-zinc-800'
                     }`}
                   title={isRecording ? "Stop recording" : "Voice input"}
                 >
