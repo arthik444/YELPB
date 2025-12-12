@@ -467,7 +467,7 @@ export function SwipeScreen({ onNavigate, preferences }: SwipeScreenProps) {
   if (!currentRestaurant) return null;
 
   return (
-    <div className="relative h-screen w-full overflow-hidden bg-black">
+    <div className="relative h-screen w-full overflow-hidden" style={{ backgroundColor: '#f9fafb' }}>
       {/* "YUM!" Explosion Animation */}
       {showYumAnimation && (
         <motion.div
@@ -476,7 +476,7 @@ export function SwipeScreen({ onNavigate, preferences }: SwipeScreenProps) {
           transition={{ duration: 0.6, ease: 'easeOut' }}
           className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none"
         >
-          <div className="text-[12rem] font-black text-[#F97316] drop-shadow-2xl" style={{ fontFamily: 'Montserrat, sans-serif' }}>
+          <div className="text-[10rem] font-black drop-shadow-2xl" style={{ fontFamily: 'Montserrat, sans-serif', color: '#f97316' }}>
             YUM!
           </div>
         </motion.div>
@@ -515,18 +515,20 @@ export function SwipeScreen({ onNavigate, preferences }: SwipeScreenProps) {
       </AnimatePresence>
 
       {/* Progress indicator */}
-      <div className="absolute left-0 right-0 top-8 z-30 px-6">
+      <div className="absolute left-0 right-0 top-6 z-30 px-6">
         <div className="flex justify-between gap-1.5">
           {restaurants.map((_, index) => (
             <motion.div
               key={index}
-              className="relative h-1 flex-1 overflow-hidden rounded-full bg-white/20 backdrop-blur-sm"
+              className="relative h-1 flex-1 overflow-hidden rounded-full"
+              style={{ backgroundColor: '#e5e7eb' }}
               initial={{ scaleX: 0 }}
               animate={{ scaleX: 1 }}
               transition={{ delay: index * 0.05 }}
             >
               <motion.div
-                className="h-full bg-gradient-to-r from-[#F97316] to-orange-400 shadow-lg shadow-orange-500/50"
+                className="h-full rounded-full"
+                style={{ backgroundColor: '#f97316' }}
                 initial={{ width: '0%' }}
                 animate={{ width: index <= currentIndex ? '100%' : '0%' }}
                 transition={{ duration: 0.5 }}
@@ -539,9 +541,9 @@ export function SwipeScreen({ onNavigate, preferences }: SwipeScreenProps) {
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mt-3 text-center"
+          className="mt-2 text-center"
         >
-          <span className="text-sm text-white/80">
+          <span className="text-sm font-medium" style={{ color: '#6b7280' }}>
             {currentIndex + 1} / {restaurants.length}
           </span>
         </motion.div>
@@ -554,9 +556,10 @@ export function SwipeScreen({ onNavigate, preferences }: SwipeScreenProps) {
             initial={{ opacity: 0, scale: 0.5, rotate: -30 }}
             animate={{ opacity: 1, scale: 1, rotate: -15 }}
             exit={{ opacity: 0 }}
-            className="absolute left-12 top-1/3 z-30 rounded-2xl border-8 border-red-500 bg-red-500/20 px-8 py-4 backdrop-blur-sm"
+            className="absolute left-8 top-1/3 z-30 rounded-2xl border-4 px-8 py-4 shadow-lg"
+            style={{ backgroundColor: '#ffffff', borderColor: '#ef4444' }}
           >
-            <span className="text-5xl text-red-500" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 800 }}>
+            <span className="text-4xl font-bold" style={{ fontFamily: 'Montserrat, sans-serif', color: '#ef4444' }}>
               NOPE
             </span>
           </motion.div>
@@ -566,51 +569,58 @@ export function SwipeScreen({ onNavigate, preferences }: SwipeScreenProps) {
             initial={{ opacity: 0, scale: 0.5, rotate: 30 }}
             animate={{ opacity: 1, scale: 1, rotate: 15 }}
             exit={{ opacity: 0 }}
-            className="absolute right-12 top-1/3 z-30 rounded-2xl border-8 border-[#F97316] bg-orange-500/20 px-8 py-4 backdrop-blur-sm"
+            className="absolute right-8 top-1/3 z-30 rounded-2xl border-4 px-8 py-4 shadow-lg"
+            style={{ backgroundColor: '#ffffff', borderColor: '#f97316' }}
           >
-            <span className="text-5xl text-[#F97316]" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 800 }}>
+            <span className="text-4xl font-bold" style={{ fontFamily: 'Montserrat, sans-serif', color: '#f97316' }}>
               LIKE
             </span>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Action Buttons */}
-      <div className="absolute inset-x-0 bottom-12 z-20 px-8">
-        <div className="flex items-center justify-center gap-6">
+      {/* Action Buttons - ACTUAL BOTTOM with proper positioning */}
+      <div className="fixed inset-x-0 bottom-0 z-50" style={{ paddingBottom: '32px', paddingTop: '16px', background: 'linear-gradient(to top, rgba(249, 250, 251, 1) 70%, rgba(249, 250, 251, 0) 100%)' }}>
+        <div className="flex items-center justify-center gap-5">
+          {/* Dislike Button */}
           <motion.button
-            whileHover={{ scale: 1.15, rotate: -5 }}
-            whileTap={{ scale: 0.85 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.92 }}
             onClick={() => handleSwipe('left')}
-            className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-red-500 bg-white shadow-2xl shadow-red-500/30 transition-all hover:bg-red-50"
+            className="flex items-center justify-center rounded-full transition-all active:scale-90"
+            style={{
+              backgroundColor: '#ffffff',
+              width: '68px',
+              height: '68px',
+              border: '3px solid #ef4444',
+              boxShadow: '0 8px 24px rgba(239, 68, 68, 0.25)',
+            }}
           >
-            <X className="h-8 w-8 text-red-500" strokeWidth={3} />
+            <X className="h-8 w-8" style={{ color: '#ef4444' }} strokeWidth={2.5} />
           </motion.button>
 
+          {/* Like Button - Primary */}
           <motion.button
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={() => setShowInfo(!showInfo)}
-            className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-white/50 bg-white/10 backdrop-blur-md transition-all hover:bg-white/20"
-          >
-            <Info className="h-5 w-5 text-white" strokeWidth={2.5} />
-          </motion.button>
-
-          <motion.button
-            whileHover={{ scale: 1.15, rotate: 5 }}
-            whileTap={{ scale: 0.85 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.92 }}
             onClick={() => handleSwipe('right')}
-            className="relative flex h-20 w-20 items-center justify-center rounded-full border-4 border-[#F97316] bg-white shadow-2xl transition-all hover:bg-orange-50"
+            className="flex items-center justify-center rounded-full transition-all active:scale-90"
+            style={{
+              backgroundColor: '#f97316',
+              width: '76px',
+              height: '76px',
+              boxShadow: '0 10px 30px rgba(249, 115, 22, 0.45)',
+            }}
             animate={{
               boxShadow: [
-                '0 20px 60px -12px rgba(249,115,22,0.4)',
-                '0 20px 80px -12px rgba(249,115,22,0.7)',
-                '0 20px 60px -12px rgba(249,115,22,0.4)',
+                '0 10px 30px rgba(249, 115, 22, 0.45)',
+                '0 12px 36px rgba(249, 115, 22, 0.6)',
+                '0 10px 30px rgba(249, 115, 22, 0.45)',
               ]
             }}
-            transition={{ duration: 2, repeat: Infinity }}
+            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
           >
-            <Heart className="h-10 w-10 text-[#F97316]" strokeWidth={3} fill="currentColor" />
+            <Heart className="h-9 w-9 text-white" strokeWidth={2.5} fill="white" />
           </motion.button>
         </div>
       </div>
@@ -635,9 +645,9 @@ function SwipeCard({ restaurant, onSwipe, direction, showInfo, isFlipped, onFlip
   const opacity = useTransform(x, [-300, -150, 0, 150, 300], [0.5, 1, 1, 1, 0.5]);
 
   const handleDragEnd = (_: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-    if (info.offset.x > 120) {
+    if (info.offset.x > 100) {
       onSwipe('right');
-    } else if (info.offset.x < -120) {
+    } else if (info.offset.x < -100) {
       onSwipe('left');
     }
   };
@@ -648,7 +658,7 @@ function SwipeCard({ restaurant, onSwipe, direction, showInfo, isFlipped, onFlip
       style={{ x, rotate, opacity }}
       drag={isFlipped ? false : "x"}
       dragConstraints={{ left: 0, right: 0 }}
-      dragElastic={0.7}
+      dragElastic={0.8}
       onDragEnd={handleDragEnd}
       initial={{ scale: 0.9, opacity: 0 }}
       animate={
@@ -658,9 +668,9 @@ function SwipeCard({ restaurant, onSwipe, direction, showInfo, isFlipped, onFlip
       }
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
     >
-      <div className="relative h-full w-full px-4 py-6">
-        {/* 3D perspective container with solid background to block next card */}
-        <div className="h-full w-full overflow-hidden rounded-[32px] shadow-2xl bg-zinc-900" style={{ perspective: '1200px' }}>
+      <div className="relative h-full w-full px-3" style={{ paddingTop: '60px', paddingBottom: '20px' }}>
+        {/* 3D perspective container */}
+        <div className="h-full w-full overflow-hidden rounded-3xl" style={{ perspective: '1200px', backgroundColor: '#ffffff', boxShadow: '0 20px 60px -15px rgba(0, 0, 0, 0.15)' }}>
           {/* Flip container - both faces always rendered */}
           <div
             className="relative h-full w-full transition-transform duration-500 ease-in-out"
@@ -669,125 +679,119 @@ function SwipeCard({ restaurant, onSwipe, direction, showInfo, isFlipped, onFlip
               transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)'
             }}
           >
-            {/* Front face */}
+            {/* Front face - Beautiful Card View */}
             <div
-              className="absolute inset-0 h-full w-full bg-cover bg-center cursor-pointer"
+              className="absolute inset-0 h-full w-full cursor-pointer"
               style={{
-                backgroundImage: `url(${restaurant.image})`,
-                backfaceVisibility: 'hidden'
+                backfaceVisibility: 'hidden',
+                display: 'flex',
+                flexDirection: 'column'
               }}
               onClick={onFlip}
             >
-              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
-              <div className="absolute inset-0 bg-gradient-to-b from-black/30 to-transparent" />
+              {/* Image Section - Top 65% */}
+              <div
+                className="relative w-full flex-shrink-0 overflow-hidden rounded-t-3xl"
+                style={{ height: '65%' }}
+              >
+                <img
+                  src={restaurant.image}
+                  alt={restaurant.name}
+                  className="w-full h-full object-cover"
+                  style={{ display: 'block' }}
+                />
+                {/* Subtle gradient for depth */}
+                <div
+                  className="absolute inset-0 pointer-events-none"
+                  style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0) 60%, rgba(0,0,0,0.15) 100%)' }}
+                />
 
-              <div className="absolute right-6 top-20 flex items-center gap-1.5 rounded-full bg-black/40 px-3 py-1.5 backdrop-blur-sm">
-                <RotateCcw className="h-3 w-3 text-white" />
-                <span className="text-xs text-white">Tap for menu</span>
-              </div>
+                {/* Tap for menu hint - top right */}
+                <motion.div
+                  className="absolute right-3 top-3 flex items-center gap-1.5 rounded-full px-3 py-1.5 backdrop-blur-md shadow-lg"
+                  style={{ backgroundColor: 'rgba(255, 255, 255, 0.95)', border: '1px solid rgba(229, 231, 235, 0.5)' }}
+                  animate={{ scale: [1, 1.05, 1] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                >
+                  <RotateCcw className="h-3 w-3" style={{ color: '#f97316' }} />
+                  <span className="text-xs font-semibold" style={{ color: '#1C1917' }}>Menu</span>
+                </motion.div>
 
-              <div className="absolute left-6 top-20">
+                {/* Trending badge - top left */}
                 {restaurant.trending && (
-                  <div className="flex items-center gap-2 rounded-full bg-gradient-to-r from-orange-500 to-red-500 px-3 py-1.5 shadow-lg">
-                    <TrendingUp className="h-4 w-4 text-white" />
-                    <span className="text-xs text-white font-bold">TRENDING</span>
+                  <div className="absolute left-3 top-3">
+                    <div className="flex items-center gap-1.5 rounded-full px-3 py-1 shadow-lg backdrop-blur-sm" style={{ backgroundColor: 'rgba(249, 115, 22, 0.95)' }}>
+                      <TrendingUp className="h-3.5 w-3.5 text-white" />
+                      <span className="text-xs text-white font-bold">TRENDING</span>
+                    </div>
                   </div>
                 )}
               </div>
 
-              <motion.div className="absolute inset-x-0 bottom-0 p-6 pb-24">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="flex items-center gap-1 rounded-full bg-[#F97316] px-2.5 py-1">
+              {/* Info Section - Bottom 35% with white background */}
+              <div
+                className="flex-1 flex flex-col p-5 rounded-b-3xl"
+                style={{ backgroundColor: '#ffffff' }}
+              >
+                {/* Rating & Price Row */}
+                <div className="flex items-center gap-2 mb-2 flex-shrink-0">
+                  <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5" style={{ backgroundColor: '#f97316' }}>
                     <Star className="h-4 w-4 text-white" fill="white" />
-                    <span className="text-sm font-bold text-white">{restaurant.rating}</span>
+                    <span className="text-sm fon-bold text-white">{restaurant.rating}</span>
                   </div>
-                  <span className="text-sm text-gray-300">({restaurant.reviewCount} reviews)</span>
-                  <span className="rounded-full bg-white/20 px-2 py-0.5 text-sm text-white">{restaurant.price}</span>
+                  <span className="text-xs font-medium" style={{ color: '#6b7280' }}>({restaurant.reviewCount})</span>
+                  <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ backgroundColor: '#f3f4f6', color: '#1C1917' }}>{restaurant.price}</span>
                 </div>
 
-                <h2 className="text-3xl font-bold text-white mb-1" style={{ fontFamily: 'Montserrat, sans-serif' }}>
+                {/* Restaurant Name */}
+                <h2 className="text-xl font-bold mb-1.5 flex-shrink-0 leading-tight" style={{ fontFamily: 'Montserrat, sans-serif', color: '#1C1917' }}>
                   {restaurant.name}
                 </h2>
 
-                <div className="flex items-center gap-2 text-gray-300">
+                {/* Cuisine & Distance */}
+                <div className="flex items-center gap-1.5 flex-shrink-0" style={{ color: '#6b7280' }}>
                   <MapPin className="h-4 w-4" />
                   <span className="text-sm">{restaurant.cuisine} • {restaurant.distance}</span>
                 </div>
-
-                <AnimatePresence>
-                  {showInfo && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      className="mt-4 mb-28 max-h-40 overflow-hidden rounded-2xl border border-white/10 bg-black/60 p-4 backdrop-blur-xl"
-                    >
-                      {restaurant.address && (
-                        <div className="flex items-start gap-3 mb-3">
-                          <MapPin className="h-4 w-4 mt-0.5 text-orange-400 shrink-0" />
-                          <div>
-                            <p className="text-sm text-white">{restaurant.address}</p>
-                            {restaurant.city && <p className="text-xs text-gray-400">{restaurant.city}</p>}
-                          </div>
-                        </div>
-                      )}
-                      {restaurant.phone && (
-                        <div className="flex items-center gap-3 mb-3">
-                          <Phone className="h-4 w-4 text-orange-400" />
-                          <p className="text-sm text-white">{restaurant.phone}</p>
-                        </div>
-                      )}
-                      {restaurant.url && (
-                        <a
-                          href={restaurant.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#F97316] px-4 py-2 text-sm font-semibold text-white"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          View on Yelp
-                        </a>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
+              </div>
             </div>
 
             {/* Back face - pre-rotated 180deg so it shows when container rotates */}
             <div
-              className="absolute inset-0 h-full w-full bg-gradient-to-b from-zinc-900 to-black flex flex-col cursor-pointer"
+              className="absolute inset-0 h-full w-full flex flex-col cursor-pointer"
               style={{
+                backgroundColor: '#ffffff',
                 backfaceVisibility: 'hidden',
                 transform: 'rotateY(180deg)'
               }}
               onClick={onFlip}
             >
               {/* Header */}
-              <div className="p-6 border-b border-white/10 shrink-0">
+              <div className="p-5 border-b shrink-0" style={{ backgroundColor: '#fff7ed', borderColor: '#fed7aa' }}>
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <ChefHat className="h-6 w-6 text-orange-400" />
-                    <h2 className="text-xl font-bold text-white" style={{ fontFamily: 'Montserrat, sans-serif' }}>
+                  <div className="flex items-center gap-2.5">
+                    <ChefHat className="h-5 w-5" style={{ color: '#f97316' }} />
+                    <h2 className="text-lg font-bold" style={{ fontFamily: 'Montserrat, sans-serif', color: '#1C1917' }}>
                       {restaurant.name}
                     </h2>
                   </div>
                   <button
                     onClick={(e) => { e.stopPropagation(); onFlip(); }}
-                    className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/20"
+                    className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
+                    style={{ backgroundColor: '#f3f4f6', color: '#1C1917' }}
                   >
                     <RotateCcw className="h-3 w-3" />
                     Back
                   </button>
                 </div>
-                <p className="mt-1 text-xs text-gray-400">Info from Yelp AI</p>
+                <p className="mt-1 text-[11px]" style={{ color: '#9ca3af' }}>Powered by Yelp AI</p>
               </div>
 
               {/* Content - centered vertically */}
-              <div className="flex-1 flex items-center justify-center p-6 overflow-y-auto">
+              <div className="flex-1 flex items-center justify-center p-5 overflow-y-auto [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                 {isLoadingMenu ? (
                   <motion.div
-                    className="flex flex-col items-center justify-center gap-6"
+                    className="flex flex-col items-center justify-center gap-4"
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.3 }}
@@ -803,7 +807,7 @@ function SwipeCard({ restaurant, onSwipe, direction, showInfo, isFlipped, onFlip
                         repeat: Infinity,
                         ease: "easeInOut"
                       }}
-                      className="text-5xl"
+                      className="text-4xl"
                     >
                       🍽️
                     </motion.div>
@@ -811,8 +815,8 @@ function SwipeCard({ restaurant, onSwipe, direction, showInfo, isFlipped, onFlip
                     {/* Spinner */}
                     <div className="relative">
                       <motion.div
-                        className="w-12 h-12 rounded-full border-4 border-orange-400/20"
-                        style={{ borderTopColor: '#F97316' }}
+                        className="w-12 h-12 rounded-full border-4"
+                        style={{ borderColor: '#fef3f2', borderTopColor: '#f97316' }}
                         animate={{ rotate: 360 }}
                         transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
                       />
@@ -820,9 +824,10 @@ function SwipeCard({ restaurant, onSwipe, direction, showInfo, isFlipped, onFlip
 
                     {/* Animated text */}
                     <div className="text-center">
-                      <p className="text-gray-300 text-sm font-medium">Asking Yelp AI...</p>
+                      <p className="text-sm font-medium" style={{ color: '#1C1917' }}>Asking Yelp AI...</p>
                       <motion.p
-                        className="text-gray-500 text-xs mt-1"
+                        className="text-xs mt-1"
+                        style={{ color: '#6b7280' }}
                         animate={{ opacity: [0.5, 1, 0.5] }}
                         transition={{ duration: 1.5, repeat: Infinity }}
                       >
@@ -831,14 +836,14 @@ function SwipeCard({ restaurant, onSwipe, direction, showInfo, isFlipped, onFlip
                     </div>
                   </motion.div>
                 ) : restaurant.menuData ? (
-                  <div className="space-y-4">
+                  <div className="space-y-4 w-full">
                     {/* If we have an AI response, display it nicely */}
                     {(restaurant.menuData as any).aiResponse ? (
-                      <div className="bg-white/5 rounded-lg p-4">
-                        <h3 className="text-sm font-semibold text-orange-400 uppercase tracking-wider mb-3">
+                      <div className="rounded-lg p-4" style={{ backgroundColor: '#f9fafb' }}>
+                        <h3 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: '#f97316' }}>
                           Popular Items & Recommendations
                         </h3>
-                        <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-line">
+                        <p className="text-sm leading-relaxed whitespace-pre-line" style={{ color: '#4b5563' }}>
                           {(restaurant.menuData as any).aiResponse}
                         </p>
                       </div>
@@ -848,7 +853,7 @@ function SwipeCard({ restaurant, onSwipe, direction, showInfo, isFlipped, onFlip
                         {restaurant.menuData.highlights && restaurant.menuData.highlights.length > 0 && (
                           <div className="flex flex-wrap gap-2">
                             {restaurant.menuData.highlights.map((h, i) => (
-                              <span key={i} className="rounded-full bg-orange-500/20 px-2.5 py-1 text-xs text-orange-300">
+                              <span key={i} className="rounded-full px-2.5 py-1 text-xs font-medium" style={{ backgroundColor: '#fff7ed', color: '#f97316' }}>
                                 {h}
                               </span>
                             ))}
@@ -856,20 +861,20 @@ function SwipeCard({ restaurant, onSwipe, direction, showInfo, isFlipped, onFlip
                         )}
                         {restaurant.menuData.categories.map((category, idx) => (
                           <div key={idx}>
-                            <h3 className="text-sm font-semibold text-orange-400 uppercase tracking-wider mb-3">
+                            <h3 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: '#f97316' }}>
                               {category.name}
                             </h3>
                             <div className="space-y-2">
                               {category.items.slice(0, 5).map((item, itemIdx) => (
-                                <div key={itemIdx} className="flex justify-between items-start gap-4 rounded-lg bg-white/5 p-3">
+                                <div key={itemIdx} className="flex justify-between items-start gap-4 rounded-lg p-3" style={{ backgroundColor: '#f9fafb' }}>
                                   <div className="flex-1">
-                                    <p className="text-sm font-medium text-white">{item.name}</p>
+                                    <p className="text-sm font-medium" style={{ color: '#1C1917' }}>{item.name}</p>
                                     {item.description && (
-                                      <p className="text-xs text-gray-400 mt-0.5 line-clamp-2">{item.description}</p>
+                                      <p className="text-xs mt-0.5 line-clamp-2" style={{ color: '#6b7280' }}>{item.description}</p>
                                     )}
                                   </div>
                                   {item.price && (
-                                    <span className="text-sm font-semibold text-green-400 shrink-0">{item.price}</span>
+                                    <span className="text-sm font-semibold shrink-0" style={{ color: '#10b981' }}>{item.price}</span>
                                   )}
                                 </div>
                               ))}
@@ -881,10 +886,10 @@ function SwipeCard({ restaurant, onSwipe, direction, showInfo, isFlipped, onFlip
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-full gap-4 text-center">
-                    <ChefHat className="h-12 w-12 text-gray-600" />
+                    <ChefHat className="h-12 w-12" style={{ color: '#d1d5db' }} />
                     <div>
-                      <p className="text-gray-400">Menu not available</p>
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p style={{ color: '#6b7280' }}>Menu not available</p>
+                      <p className="text-xs mt-1" style={{ color: '#9ca3af' }}>
                         {restaurant.menuError || ((restaurant.menuUrl || restaurant.url) ? 'Could not parse menu from page' : 'No URL available')}
                       </p>
                     </div>

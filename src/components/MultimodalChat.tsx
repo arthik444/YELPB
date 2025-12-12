@@ -692,12 +692,25 @@ export function MultimodalChat({
   // Full-screen mobile mode
   if (fullScreenMode) {
     return (
-      <div className="flex flex-col h-full w-full bg-gray-100">
+      <div className="flex flex-col flex-1 w-full bg-gray-100" style={{ position: 'relative', minHeight: 0 }}>
         {/* Messages Area - scrollable with padding for search bar */}
-        <div className="flex-1 overflow-y-auto px-4 py-6 bg-gray-100" style={{
-          paddingBottom: '160px', // Space for search bar + nav bar
-          WebkitOverflowScrolling: 'touch' // Smooth scrolling on iOS
-        }}>
+        <div
+          className="px-4 py-6 bg-gray-100 [&::-webkit-scrollbar]:hidden"
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            paddingBottom: '140px', // Space for search bar (60px) + nav bar (60px) + margin (20px)
+            overflowY: 'auto', // Enable vertical scrolling
+            overflowX: 'hidden', // Prevent horizontal scrolling
+            WebkitOverflowScrolling: 'touch', // Smooth scrolling on iOS
+            overscrollBehavior: 'contain', // Prevent pull-to-refresh on mobile
+            scrollbarWidth: 'none', // Hide scrollbar in Firefox
+            msOverflowStyle: 'none' // Hide scrollbar in IE/Edge
+          }}
+        >
           {messages.length === 0 ? (
             // Empty state
             <div className="flex flex-col items-center justify-center h-full text-center px-6">
