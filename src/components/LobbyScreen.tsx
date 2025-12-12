@@ -68,9 +68,30 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
   const [chatMinimized, setChatMinimized] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState<SessionUser[]>([]);
   const [showOnlineUsers, setShowOnlineUsers] = useState(false);
-  const [currentUserId] = useState(() => `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
+  const [currentUserId] = useState(() => {
+    // Check if userId already exists in localStorage
+    let userId = localStorage.getItem('userId');
+    if (!userId) {
+      // Generate new userId and save to localStorage
+      userId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem('userId', userId);
+      console.log('🆔 Generated and saved new userId:', userId);
+    } else {
+      console.log('🆔 Using existing userId from localStorage:', userId);
+    }
+    return userId;
+  });
   const [hoveredUserId, setHoveredUserId] = useState<string | null>(null);
   const [isOwner, setIsOwner] = useState(false); // Track if current user is session owner
+  const [lockedConsensus, setLockedConsensus] = useState<{
+    budget?: string;
+    cuisine?: string;
+    vibe?: string;
+    dietary?: string;
+    distance?: string;
+    bookingDate?: string;
+    bookingTime?: string;
+  } | null>(null); // Store the locked consensus from Firebase
 
   // Chat handlers exposed from MultimodalChat
   const [chatHandlers, setChatHandlers] = useState<{
@@ -186,6 +207,11 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
         setIsOwner((data as any).ownerId === currentUserId);
         console.log('👑 Owner check:', { ownerId: (data as any).ownerId, currentUserId, isOwner: (data as any).ownerId === currentUserId });
       }
+      // Get locked consensus from Firebase (shared across all users)
+      if ((data as any).consensus) {
+        setLockedConsensus((data as any).consensus);
+        console.log('📋 Loaded locked consensus from Firebase:', (data as any).consensus);
+      }
       // Also get users from main document (backup method)
       if (data.users) {
         const usersArray = Object.values(data.users) as SessionUser[];
@@ -196,14 +222,13 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
       }
     });
 
-    // Cleanup on unmount
+    // Cleanup subscriptions on unmount (but keep user in session)
     return () => {
       unsubscribeUsers();
       unsubscribeActivities();
       unsubscribeSession();
-      sessionService.leaveSession(sessionCode, currentUserId).catch(err => {
-        console.error('Failed to leave session:', err);
-      });
+      // Don't remove user from session - they're just navigating to next screen
+      // Users will be removed when they close the tab (handled by window beforeunload in App.tsx)
     };
   }, [sessionCode, currentUserId]);
 
