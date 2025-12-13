@@ -975,6 +975,76 @@ Return ONLY valid JSON, no other text."""
                 "detected_preferences": {}
             }
 
+    async def text_to_speech(
+        self,
+        text: str,
+        voice_name: str = "Kore"
+    ) -> Dict[str, Any]:
+        """
+        Convert text to speech using Gemini TTS
+        
+        Args:
+            text: Text to convert to speech
+            voice_name: Voice to use (Aoede, Charon, Fenrir, Kore, Puck)
+        
+        Returns:
+            Dictionary with base64 encoded audio and mime type
+        """
+        try:
+            logger.info(f"Generating TTS for text: {text[:50]}...")
+            
+            # Format text as speech instruction for TTS model
+            speech_instruction = f"Say in a friendly, helpful tone: {text}"
+            
+            # Configure for audio output - must use TTS-specific model
+            response = self.client.models.generate_content(
+                model="gemini-2.5-flash-preview-tts",
+                contents=speech_instruction,
+                config=types.GenerateContentConfig(
+                    response_modalities=["AUDIO"],
+                    speech_config=types.SpeechConfig(
+                        voice_config=types.VoiceConfig(
+                            prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                                voice_name=voice_name
+                            )
+                        )
+                    )
+                )
+            )
+            
+            # Extract audio data from response with null-safe checks
+            if response.candidates:
+                candidate = response.candidates[0]
+                if candidate.content and candidate.content.parts:
+                    for part in candidate.content.parts:
+                        if part.inline_data and part.inline_data.data:
+                            audio_base64 = base64.b64encode(part.inline_data.data).decode('utf-8')
+                            mime_type = part.inline_data.mime_type or "audio/wav"
+                            logger.info(f"TTS generated successfully, mime_type: {mime_type}")
+                            return {
+                                "success": True,
+                                "audio_base64": audio_base64,
+                                "mime_type": mime_type
+                            }
+                else:
+                    logger.warning(f"TTS response has no content or parts: {candidate}")
+            else:
+                logger.warning(f"TTS response has no candidates: {response}")
+            
+            logger.warning("No audio data in TTS response")
+            return {
+                "success": False,
+                "error": "No audio generated"
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in TTS: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
 
 # Create singleton instance
 gemini_service = GeminiService()
+

@@ -578,6 +578,39 @@ async def chat_unified(request: UnifiedChatRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ==================== TEXT-TO-SPEECH ENDPOINT ====================
+
+class TTSRequest(BaseModel):
+    """Request for text-to-speech conversion"""
+    text: str
+    voice_name: str = "Kore"  # Aoede, Charon, Fenrir, Kore, Puck
+
+@app.post("/api/multimodal/tts")
+async def text_to_speech(request: TTSRequest):
+    """
+    Convert text to speech using Gemini TTS
+    
+    Returns:
+        - audio_base64: base64 encoded audio data
+        - mime_type: audio MIME type
+    """
+    try:
+        result = await gemini_service.text_to_speech(
+            text=request.text,
+            voice_name=request.voice_name
+        )
+        
+        if not result.get("success"):
+            raise HTTPException(status_code=500, detail=result.get("error", "TTS failed"))
+        
+        logger.info(f"TTS generated for: {request.text[:50]}...")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in TTS: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Google Calendar Integration Endpoints
 
 # In-memory store for OAuth state (use Redis/DB in production)

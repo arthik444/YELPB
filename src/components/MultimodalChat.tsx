@@ -73,6 +73,7 @@ interface MultimodalChatProps {
     stopRecording: () => void;
     isRecording: boolean;
     isTyping: boolean;
+    openVoiceMode: () => void;
     fileInputRef: React.RefObject<HTMLInputElement | null>;
   }) => void;
 }
@@ -304,11 +305,12 @@ export function MultimodalChat({
   // Send audio message - using unified backend endpoint
   const sendAudioMessage = async (audioBlob: Blob) => {
     try {
-      // Add user message indicator
+      // Add a placeholder user message immediately so user sees feedback
+      const placeholderId = getNextMsgId();
       setMessages(prev => [...prev, {
-        id: getNextMsgId(),
+        id: placeholderId,
         sender: 'user',
-        text: '🎤 Voice message',
+        text: '🎙️ Processing voice...',
         hasAudio: true
       }]);
 
@@ -327,15 +329,22 @@ export function MultimodalChat({
           preferences || {}
         );
 
-        // Don't set isTyping to false yet - wait until message is added
-
         if (result.success && result.transcription) {
-          // Show what we heard
-          setMessages(prev => [...prev, {
-            id: getNextMsgId(),
-            sender: 'ai',
-            text: `🎤 "${result.transcription}"`
-          }]);
+          // Replace placeholder with actual transcription and update refs/storage
+          const updatedMessages = messagesRef.current.map(msg =>
+            msg.id === placeholderId
+              ? { ...msg, text: result.transcription }
+              : msg
+          );
+          messagesRef.current = updatedMessages;
+          setMessages(updatedMessages);
+
+          // Save to localStorage
+          try {
+            localStorage.setItem(storageKey, JSON.stringify(updatedMessages));
+          } catch (e) {
+            console.warn('Failed to save updated transcription to localStorage:', e);
+          }
 
           // Apply detected preferences directly (already mapped by backend)
           if (Object.keys(result.detected_preferences).length > 0 && onPreferencesDetected) {
@@ -706,6 +715,7 @@ export function MultimodalChat({
         stopRecording,
         isRecording,
         isTyping,
+        openVoiceMode: () => setVoiceModeOpen(true),
         fileInputRef
       });
     }
@@ -854,6 +864,30 @@ export function MultimodalChat({
             display: none;
           }
         `}</style>
+
+        {/* Voice Mode - Fullscreen conversation (for full-screen mode) */}
+        <VoiceMode
+          isOpen={voiceModeOpen}
+          onClose={() => setVoiceModeOpen(false)}
+          onTranscription={(text) => {
+            // Add user message to chat (their actual words)
+            addMessageAndSave({
+              id: getNextMsgId(),
+              sender: 'user',
+              text: text,
+              hasAudio: true
+            });
+          }}
+          onAIResponse={(text) => {
+            // Add AI response to chat
+            addMessageAndSave({
+              id: getNextMsgId(),
+              sender: 'ai',
+              text: text
+            });
+          }}
+          onPreferencesDetected={onPreferencesDetected}
+        />
       </div>
     );
   }
@@ -1110,21 +1144,21 @@ export function MultimodalChat({
         isOpen={voiceModeOpen}
         onClose={() => setVoiceModeOpen(false)}
         onTranscription={(text) => {
-          // Add user message to chat
-          setMessages(prev => [...prev, {
+          // Add user message to chat (their actual words)
+          addMessageAndSave({
             id: getNextMsgId(),
             sender: 'user',
-            text: `🎤 ${text}`,
+            text: text,
             hasAudio: true
-          }]);
+          });
         }}
         onAIResponse={(text) => {
           // Add AI response to chat
-          setMessages(prev => [...prev, {
+          addMessageAndSave({
             id: getNextMsgId(),
             sender: 'ai',
-            text: `🔊 ${text}`
-          }]);
+            text: text
+          });
         }}
         onPreferencesDetected={onPreferencesDetected}
       />

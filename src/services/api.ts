@@ -306,16 +306,16 @@ class ApiService {
     });
   }
 
-  async textToSpeech(text: string, voiceName: string = 'Kore'): Promise<Blob> {
-    const response = await fetch(`${this.baseURL}/api/tts`, {
+  async textToSpeech(text: string, voiceName: string = 'Kore'): Promise<{
+    success: boolean;
+    audio_base64?: string;
+    mime_type?: string;
+    error?: string;
+  }> {
+    return this.request('/api/multimodal/tts', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, voice_name: voiceName }),
     });
-    if (!response.ok) {
-      throw new Error(`TTS request failed: ${response.statusText}`);
-    }
-    return await response.blob();
   }
 
   async analyzeImage(imageBase64: string, mimeType: string = 'image/jpeg'): Promise<{
