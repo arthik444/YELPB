@@ -1,0 +1,83 @@
+name: Frontend Amplify CI/CD
+
+on:
+  push:
+    branches: ["prod"]
+    paths:
+      - "src/**"
+      - "public/**"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.ts"
+      - ".github/workflows/frontend-amplify.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "public/**"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.ts"
+      - ".github/workflows/frontend-amplify.yml"
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: "20"
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  AMPLIFY_APP_ID: ${{ secrets.AMPLIFY_APP_ID }}
+  AMPLIFY_BRANCH: ${{ secrets.AMPLIFY_BRANCH }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run build
+        run: npm run build
+
+      - name: Archive dist output
+        run: zip -r dist.zip dist
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Create Amplify deployment
+        id: create_deployment
+        run: |
+          response=$(aws amplify create-deployment --app-id "$AMPLIFY_APP_ID" --branch-name "$AMPLIFY_BRANCH")
+          echo "response=$response"
+          uploadUrl=$(echo "$response" | jq -r '.zipUploadUrl')
+          deploymentId=$(echo "$response" | jq -r '.deploymentId')
+          echo "upload_url=$uploadUrl" >> $GITHUB_OUTPUT
+          echo "deployment_id=$deploymentId" >> $GITHUB_OUTPUT
+
+      - name: Upload bundle to Amplify
+        env:
+          UPLOAD_URL: ${{ steps.create_deployment.outputs.upload_url }}
+        run: |
+          curl -f -T dist.zip "$UPLOAD_URL"
+
+      - name: Finalize Amplify deployment
+        env:
+          DEPLOYMENT_ID: ${{ steps.create_deployment.outputs.deployment_id }}
+        run: |
+          aws amplify update-deployment \
+            --app-id "$AMPLIFY_APP_ID" \
+            --branch-name "$AMPLIFY_BRANCH" \
+            --deployment-id "$DEPLOYMENT_ID"
