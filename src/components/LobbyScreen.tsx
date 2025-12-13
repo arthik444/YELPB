@@ -103,7 +103,8 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
     startRecording: () => void;
     stopRecording: () => void;
     isRecording: boolean;
-    fileInputRef: React.RefObject<HTMLInputElement>;
+    isTyping: boolean;
+    fileInputRef: React.RefObject<HTMLInputElement | null>;
   } | null>(null);
 
   // Multi-user voting state from Firebase
@@ -1143,7 +1144,7 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
                   value={chatHandlers?.message || ''}
                   onChange={(e) => chatHandlers?.setMessage(e.target.value)}
                   onKeyPress={(e) => {
-                    if (e.key === 'Enter' && chatHandlers?.message.trim()) {
+                    if (e.key === 'Enter' && chatHandlers?.message.trim() && !chatHandlers?.isTyping) {
                       chatHandlers.handleSendMessage();
                     }
                   }}
@@ -1168,10 +1169,10 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
                 <motion.button
                   whileTap={{ scale: 0.9 }}
                   onClick={() => chatHandlers?.handleSendMessage()}
-                  disabled={!chatHandlers?.message.trim()}
+                  disabled={!chatHandlers?.message.trim() || chatHandlers?.isTyping}
                   className="flex-shrink-0 w-9 h-9 flex items-center justify-center transition-opacity"
                   style={{
-                    opacity: chatHandlers?.message.trim() ? 1 : 0.4
+                    opacity: (chatHandlers?.message.trim() && !chatHandlers?.isTyping) ? 1 : 0.4
                   }}
                 >
                   <Send className="h-5 w-5" style={{ color: '#F05A28' }} />

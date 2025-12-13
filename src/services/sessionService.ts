@@ -62,9 +62,8 @@ export interface SessionData {
   users: Record<string, SessionUser>;
   votes: SessionVotes;
   locked: boolean;
-
-
-
+  consensus?: SessionPreferences;
+  cachedMenus?: Record<string, { data: any }>;
   winnerId?: string;
   winningReason?: string;
   sharedRestaurants?: any[];

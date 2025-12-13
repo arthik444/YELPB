@@ -122,8 +122,9 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
 
           // Sync cached menu data from other users
           if (data.cachedMenus) {
+            const cachedMenus = data.cachedMenus as Record<string, { data: any }>;
             setRestaurants(prev => prev.map(r => {
-              const cached = data.cachedMenus[r.id];
+              const cached = cachedMenus[r.id.toString()];
               if (cached && !r.menuData) {
                 console.log('📥 Synced cached menu for:', r.name);
                 return { ...r, menuData: cached.data };

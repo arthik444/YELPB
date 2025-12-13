@@ -659,6 +659,322 @@ Return ONLY valid JSON, no other text."""
                 "reason": "Randomly selected as a trusty fallback!"
             }
 
+    # ==================== UNIFIED MULTIMODAL ENDPOINTS ====================
+    # These methods consolidate multimodal processing and return ready-to-use preferences
+    
+    # Preference mapping dictionaries (centralized on backend)
+    CUISINE_MAP = {
+        'italian': 'Italian', 'japanese': 'Japanese', 'mexican': 'Mexican',
+        'french': 'French', 'thai': 'Thai', 'indian': 'Indian', 'korean': 'Korean',
+        'spanish': 'Spanish', 'chinese': 'Chinese', 'vietnamese': 'Vietnamese',
+        'greek': 'Greek', 'mediterranean': 'Mediterranean', 'american': 'American',
+        'sushi': 'Japanese', 'ramen': 'Japanese', 'pasta': 'Italian',
+        'pizza': 'Italian', 'tacos': 'Mexican', 'curry': 'Indian',
+        'bbq': 'American', 'seafood': 'Seafood', 'steakhouse': 'Steakhouse'
+    }
+    
+    PRICE_MAP = {
+        '$': '$', '$$': '$$', '$$$': '$$$', '$$$$': '$$$$',
+        'budget': '$', 'cheap': '$', 'inexpensive': '$',
+        'moderate': '$$', 'mid-range': '$$', 'affordable': '$$',
+        'expensive': '$$$', 'upscale': '$$$', 'pricey': '$$$',
+        'luxury': '$$$$', 'fine dining': '$$$$', 'high-end': '$$$$'
+    }
+    
+    VIBE_MAP = {
+        'casual': 'Casual', 'trendy': 'Trendy', 'romantic': 'Romantic',
+        'cozy': 'Cozy', 'lively': 'Lively', 'fine dining': 'Fine Dining',
+        'family-friendly': 'Family-Friendly', 'family friendly': 'Family-Friendly',
+        'outdoor': 'Outdoor Seating', 'upscale': 'Fine Dining', 'fancy': 'Fine Dining',
+        'quiet': 'Cozy', 'chill': 'Casual', 'fun': 'Lively', 'hip': 'Trendy'
+    }
+    
+    DIETARY_MAP = {
+        'vegetarian': 'Vegetarian', 'vegan': 'Vegan',
+        'gluten-free': 'Gluten-Free', 'gluten free': 'Gluten-Free',
+        'halal': 'Halal', 'kosher': 'Kosher', 'dairy-free': 'Dairy-Free',
+        'nut-free': 'Nut-Free', 'pescatarian': 'Pescatarian'
+    }
+
+    def _map_preference(self, value: str, mapping: Dict[str, str]) -> Optional[str]:
+        """Map a raw preference value to standardized format"""
+        if not value:
+            return None
+        key = value.lower().strip()
+        return mapping.get(key, value.title())
+
+    async def process_voice_unified(
+        self,
+        audio_data: bytes,
+        mime_type: str = "audio/webm",
+        session_context: str = "",
+        current_preferences: dict = None
+    ) -> Dict[str, Any]:
+        """
+        Unified voice processing: transcription + preference extraction + AI response
+        
+        Returns everything the frontend needs in one call:
+        - transcription: what the user said
+        - detected_preferences: mapped preferences ready to apply
+        - ai_response: conversational AI message
+        """
+        try:
+            logger.info(f"Processing voice message ({len(audio_data)} bytes)")
+            
+            # Step 1: Transcribe the audio
+            transcription = await self.transcribe_audio(audio_data, mime_type)
+            logger.info(f"Transcription: {transcription}")
+            
+            if not transcription or not transcription.strip():
+                return {
+                    "success": False,
+                    "error": "Could not transcribe audio",
+                    "transcription": "",
+                    "detected_preferences": {},
+                    "ai_response": "I couldn't hear that clearly. Could you try again?"
+                }
+            
+            # Step 2: Analyze preferences from transcription
+            pref_result = await self.analyze_preferences(transcription)
+            detected_preferences = {}
+            
+            if pref_result.get("success") and pref_result.get("result"):
+                try:
+                    import json
+                    analysis = json.loads(pref_result["result"])
+                    
+                    # Map cuisine
+                    if analysis.get("cuisine_preferences"):
+                        cuisines = analysis["cuisine_preferences"]
+                        if isinstance(cuisines, list) and len(cuisines) > 0:
+                            mapped = self._map_preference(str(cuisines[0]), self.CUISINE_MAP)
+                            if mapped:
+                                detected_preferences["cuisine"] = mapped
+                    
+                    # Map price/budget
+                    if analysis.get("price_range"):
+                        mapped = self._map_preference(analysis["price_range"], self.PRICE_MAP)
+                        if mapped:
+                            detected_preferences["budget"] = mapped
+                    
+                    # Map vibe/ambiance
+                    if analysis.get("ambiance_preferences"):
+                        mapped = self._map_preference(analysis["ambiance_preferences"], self.VIBE_MAP)
+                        if mapped:
+                            detected_preferences["vibe"] = mapped
+                    
+                    # Map dietary
+                    if analysis.get("dietary_restrictions"):
+                        dietary = analysis["dietary_restrictions"]
+                        if isinstance(dietary, list) and len(dietary) > 0:
+                            mapped = self._map_preference(str(dietary[0]), self.DIETARY_MAP)
+                            if mapped:
+                                detected_preferences["dietary"] = mapped
+                                
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Failed to parse preferences: {e}")
+            
+            # Step 3: Generate AI response using chat
+            chat_result = await self.chat(
+                user_message=transcription,
+                session_context=session_context,
+                current_preferences=current_preferences or {}
+            )
+            
+            ai_response = chat_result.get("message", "I heard you! What else can I help with?")
+            
+            return {
+                "success": True,
+                "transcription": transcription,
+                "detected_preferences": detected_preferences,
+                "ai_response": ai_response
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in unified voice processing: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "transcription": "",
+                "detected_preferences": {},
+                "ai_response": "Sorry, I had trouble processing that. Please try again."
+            }
+
+    async def process_image_unified(
+        self,
+        image_data: bytes,
+        mime_type: str = "image/jpeg",
+        user_message: str = ""
+    ) -> Dict[str, Any]:
+        """
+        Unified image processing: analysis + preference extraction + response message
+        
+        Returns:
+        - analysis: raw image analysis results
+        - detected_preferences: mapped preferences ready to apply
+        - response_message: formatted AI response about the image
+        """
+        try:
+            logger.info(f"Processing image ({len(image_data)} bytes)")
+            
+            # Analyze the image
+            result = await self.analyze_food_image(image_data, mime_type)
+            
+            if not result.get("success"):
+                return {
+                    "success": False,
+                    "error": result.get("error", "Failed to analyze image"),
+                    "detected_preferences": {},
+                    "response_message": "I couldn't analyze that image. Please try a different photo."
+                }
+            
+            detected_preferences = {}
+            
+            # Map cuisine from analysis
+            if result.get("cuisine_types"):
+                cuisines = result["cuisine_types"]
+                if isinstance(cuisines, list) and len(cuisines) > 0:
+                    mapped = self._map_preference(str(cuisines[0]), self.CUISINE_MAP)
+                    if mapped:
+                        detected_preferences["cuisine"] = mapped
+            
+            # Map price range
+            if result.get("price_range"):
+                mapped = self._map_preference(result["price_range"], self.PRICE_MAP)
+                if mapped:
+                    detected_preferences["budget"] = mapped
+            
+            # Map vibe
+            if result.get("vibe"):
+                vibes = result["vibe"]
+                if isinstance(vibes, list) and len(vibes) > 0:
+                    mapped = self._map_preference(str(vibes[0]), self.VIBE_MAP)
+                    if mapped:
+                        detected_preferences["vibe"] = mapped
+            
+            # Build response message
+            response_parts = []
+            
+            if result.get("image_type") == "restaurant":
+                if result.get("restaurant_name"):
+                    response_parts.append(f"📍 I see a restaurant: **{result['restaurant_name']}**!")
+                else:
+                    response_parts.append("🏪 I see a restaurant!")
+            elif result.get("dishes_detected") and len(result["dishes_detected"]) > 0:
+                dishes = ", ".join(result["dishes_detected"][:3])
+                response_parts.append(f"🍽️ I see: {dishes}!")
+            else:
+                response_parts.append("📷 I analyzed your photo!")
+            
+            # Add detected preferences to message
+            pref_parts = []
+            if detected_preferences.get("cuisine"):
+                pref_parts.append(f"🍳 Cuisine: {detected_preferences['cuisine']}")
+            if detected_preferences.get("budget"):
+                pref_parts.append(f"💰 Budget: {detected_preferences['budget']}")
+            if detected_preferences.get("vibe"):
+                pref_parts.append(f"✨ Vibe: {detected_preferences['vibe']}")
+            
+            if pref_parts:
+                response_parts.append("\n\nDetected preferences:\n" + "\n".join(pref_parts))
+                response_parts.append("\n\nI've updated your preferences! Anything else to add?")
+            else:
+                desc = result.get("description", "Looks delicious!")
+                response_parts.append(f"\n\n{desc} Tell me more about what you're looking for.")
+            
+            return {
+                "success": True,
+                "analysis": result,
+                "detected_preferences": detected_preferences,
+                "response_message": "".join(response_parts)
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in unified image processing: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "detected_preferences": {},
+                "response_message": "Sorry, I had trouble analyzing that image. Please try again."
+            }
+
+    async def chat_unified(
+        self,
+        user_message: str,
+        session_context: str = "",
+        current_preferences: dict = None
+    ) -> Dict[str, Any]:
+        """
+        Unified chat: AI response + preference extraction in one call
+        
+        Returns:
+        - ai_response: conversational message from AI
+        - detected_preferences: any preferences extracted from the message
+        """
+        try:
+            logger.info(f"Processing chat message: {user_message[:50]}...")
+            
+            # Step 1: Analyze for preferences
+            pref_result = await self.analyze_preferences(user_message)
+            detected_preferences = {}
+            
+            if pref_result.get("success") and pref_result.get("result"):
+                try:
+                    import json
+                    analysis = json.loads(pref_result["result"])
+                    
+                    # Map all detected preferences
+                    if analysis.get("cuisine_preferences"):
+                        cuisines = analysis["cuisine_preferences"]
+                        if isinstance(cuisines, list) and len(cuisines) > 0:
+                            mapped = self._map_preference(str(cuisines[0]), self.CUISINE_MAP)
+                            if mapped:
+                                detected_preferences["cuisine"] = mapped
+                    
+                    if analysis.get("price_range"):
+                        mapped = self._map_preference(analysis["price_range"], self.PRICE_MAP)
+                        if mapped:
+                            detected_preferences["budget"] = mapped
+                    
+                    if analysis.get("ambiance_preferences"):
+                        mapped = self._map_preference(analysis["ambiance_preferences"], self.VIBE_MAP)
+                        if mapped:
+                            detected_preferences["vibe"] = mapped
+                    
+                    if analysis.get("dietary_restrictions"):
+                        dietary = analysis["dietary_restrictions"]
+                        if isinstance(dietary, list) and len(dietary) > 0:
+                            mapped = self._map_preference(str(dietary[0]), self.DIETARY_MAP)
+                            if mapped:
+                                detected_preferences["dietary"] = mapped
+                                
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Failed to parse preferences from chat: {e}")
+            
+            # Step 2: Generate conversational response
+            chat_result = await self.chat(
+                user_message=user_message,
+                session_context=session_context,
+                current_preferences=current_preferences or {}
+            )
+            
+            ai_response = chat_result.get("message", "I'm here to help! What are you looking for?")
+            
+            return {
+                "success": True,
+                "ai_response": ai_response,
+                "detected_preferences": detected_preferences
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in unified chat: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "ai_response": "Sorry, something went wrong. Please try again.",
+                "detected_preferences": {}
+            }
+
 
 # Create singleton instance
 gemini_service = GeminiService()
