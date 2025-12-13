@@ -10,6 +10,7 @@ interface Message {
   text: string;
   hasAudio?: boolean;
   hasImage?: boolean;
+  imageUrl?: string;
 }
 
 interface Activity {
@@ -71,7 +72,8 @@ interface MultimodalChatProps {
     startRecording: () => void;
     stopRecording: () => void;
     isRecording: boolean;
-    fileInputRef: React.RefObject<HTMLInputElement>;
+    isTyping: boolean;
+    fileInputRef: React.RefObject<HTMLInputElement | null>;
   }) => void;
 }
 
@@ -95,19 +97,79 @@ export function MultimodalChat({
     return 'Hi there! I\'m here to help you find amazing restaurants. What are you in the mood for today? 😊';
   };
 
-  const [messages, setMessages] = useState<Message[]>([
-    {
+  // Generate storage key based on session
+  const storageKey = `chat_messages_${sessionCode || 'default'}`;
+
+  // Load messages from localStorage or use default
+  const getInitialMessages = (): Message[] => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load chat messages from localStorage:', e);
+    }
+    return [{
       id: 1,
       sender: 'ai',
       text: getWelcomeMessage()
-    },
-  ]);
+    }];
+  };
+
+  const [messages, setMessages] = useState<Message[]>(getInitialMessages);
   const [message, setMessage] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
+
+  // Persist isTyping state so thinking animation survives tab switches
+  const typingStorageKey = `chat_typing_${sessionCode || 'default'}`;
+  const [isTyping, setIsTyping] = useState(() => {
+    try {
+      return localStorage.getItem(typingStorageKey) === 'true';
+    } catch { return false; }
+  });
+
   const [isRecording, setIsRecording] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [voiceModeOpen, setVoiceModeOpen] = useState(false);
+
+  // Keep a ref to always have latest messages for direct localStorage saves
+  const messagesRef = useRef<Message[]>(messages);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  // Save isTyping to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(typingStorageKey, isTyping ? 'true' : 'false');
+    } catch { }
+  }, [isTyping, typingStorageKey]);
+
+  // Save messages to localStorage whenever they change
+  useEffect(() => {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(messages));
+    } catch (e) {
+      console.warn('Failed to save chat messages to localStorage:', e);
+    }
+  }, [messages, storageKey]);
+
+  // Helper to add message AND save directly to localStorage (for in-flight responses)
+  const addMessageAndSave = (newMessage: Message) => {
+    const updatedMessages = [...messagesRef.current, newMessage];
+    messagesRef.current = updatedMessages;
+    setMessages(updatedMessages);
+    // Also save directly to localStorage in case component unmounts
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(updatedMessages));
+    } catch (e) {
+      console.warn('Failed to save message to localStorage:', e);
+    }
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -239,7 +301,7 @@ export function MultimodalChat({
     }
   };
 
-  // Send audio message
+  // Send audio message - using unified backend endpoint
   const sendAudioMessage = async (audioBlob: Blob) => {
     try {
       // Add user message indicator
@@ -257,90 +319,42 @@ export function MultimodalChat({
       reader.onload = async () => {
         const base64Audio = (reader.result as string).split(',')[1];
 
-        // First transcribe the audio
-        const transcriptResult = await apiService.transcribeAudio(base64Audio, 'audio/webm');
-        const transcription = transcriptResult.transcription || '';
+        // Use unified backend endpoint - returns everything we need in one call
+        const result = await apiService.processVoiceUnified(
+          base64Audio,
+          'audio/webm',
+          buildSessionContext(),
+          preferences || {}
+        );
 
-        setIsTyping(false);
+        // Don't set isTyping to false yet - wait until message is added
 
-        if (transcription) {
-          // Show what we heard (shortened for better UX)
+        if (result.success && result.transcription) {
+          // Show what we heard
           setMessages(prev => [...prev, {
             id: getNextMsgId(),
             sender: 'ai',
-            text: `🎤 "${transcription}"`
+            text: `🎤 "${result.transcription}"`
           }]);
 
-          // Now analyze preferences from the transcription
-          setIsTyping(true);
-          const prefResult = await apiService.analyzePreferences(transcription);
-
-          let voiceDetectedPrefs: any = {};
-
-          if (prefResult.success && prefResult.result && onPreferencesDetected) {
-            try {
-              const analysis = JSON.parse(prefResult.result);
-
-              // Same mapping logic as text
-              if (Array.isArray(analysis.cuisine_preferences) && analysis.cuisine_preferences.length > 0) {
-                const cuisineMap: Record<string, string> = {
-                  'italian': 'Italian', 'japanese': 'Japanese', 'mexican': 'Mexican',
-                  'french': 'French', 'thai': 'Thai', 'indian': 'Indian', 'korean': 'Korean',
-                  'spanish': 'Spanish', 'chinese': 'Chinese', 'sushi': 'Japanese',
-                  'ramen': 'Japanese', 'pasta': 'Italian', 'pizza': 'Italian',
-                  'tacos': 'Mexican', 'curry': 'Indian'
-                };
-                const firstCuisine = String(analysis.cuisine_preferences[0]).toLowerCase();
-                voiceDetectedPrefs.cuisine = cuisineMap[firstCuisine] || analysis.cuisine_preferences[0];
-              }
-
-              if (analysis.price_range && typeof analysis.price_range === 'string') {
-                const priceMap: Record<string, string> = {
-                  'budget': '$', 'cheap': '$', 'inexpensive': '$',
-                  'moderate': '$$', 'mid-range': '$$',
-                  'expensive': '$$$', 'upscale': '$$$',
-                  'luxury': '$$$$', 'fine dining': '$$$$'
-                };
-                const priceKey = analysis.price_range.toLowerCase();
-                voiceDetectedPrefs.budget = priceMap[priceKey] || '$$';
-              }
-
-              if (analysis.ambiance_preferences && typeof analysis.ambiance_preferences === 'string') {
-                const vibeMap: Record<string, string> = {
-                  'casual': 'Casual', 'trendy': 'Trendy', 'romantic': 'Romantic',
-                  'cozy': 'Cozy', 'lively': 'Lively', 'fine dining': 'Fine Dining',
-                  'family-friendly': 'Family-Friendly', 'family friendly': 'Family-Friendly'
-                };
-                const vibeKey = analysis.ambiance_preferences.toLowerCase();
-                voiceDetectedPrefs.vibe = vibeMap[vibeKey] || analysis.ambiance_preferences;
-              }
-
-              if (Array.isArray(analysis.dietary_requirements) && analysis.dietary_requirements.length > 0) {
-                const dietaryMap: Record<string, string> = {
-                  'vegetarian': 'Vegetarian', 'vegan': 'Vegan',
-                  'gluten-free': 'Gluten-Free', 'gluten free': 'Gluten-Free',
-                  'halal': 'Halal', 'kosher': 'Kosher'
-                };
-                const firstDietary = String(analysis.dietary_requirements[0]).toLowerCase();
-                voiceDetectedPrefs.dietary = dietaryMap[firstDietary] || analysis.dietary_requirements[0];
-              }
-
-              if (Object.keys(voiceDetectedPrefs).length > 0) {
-                onPreferencesDetected(voiceDetectedPrefs);
-              }
-            } catch (error) {
-              console.error('Error parsing voice preferences:', error);
-            }
+          // Apply detected preferences directly (already mapped by backend)
+          if (Object.keys(result.detected_preferences).length > 0 && onPreferencesDetected) {
+            onPreferencesDetected(result.detected_preferences);
           }
 
+          // Add AI response - use addMessageAndSave to persist during unmount
           setIsTyping(false);
-
-          // Use smart response for voice too
-          const voiceResponse = getSmartResponse(transcription, voiceDetectedPrefs);
+          addMessageAndSave({
+            id: getNextMsgId(),
+            sender: 'ai',
+            text: result.ai_response
+          });
+        } else {
+          setIsTyping(false);
           setMessages(prev => [...prev, {
             id: getNextMsgId(),
             sender: 'ai',
-            text: voiceResponse
+            text: result.error || 'Sorry, I had trouble understanding that. Please try again.'
           }]);
         }
       };
@@ -348,11 +362,11 @@ export function MultimodalChat({
     } catch (error) {
       console.error('Error sending audio:', error);
       setIsTyping(false);
-      setMessages(prev => [...prev, {
+      addMessageAndSave({
         id: getNextMsgId(),
         sender: 'ai',
         text: 'Sorry, I had trouble processing your voice message. Please try again or type your message.'
-      }]);
+      });
     }
   };
 
@@ -367,7 +381,7 @@ export function MultimodalChat({
     }
   };
 
-  // Send image message with enhanced analysis
+  // Send image message - using unified backend endpoint
   const sendImageMessage = async () => {
     if (!selectedImage) return;
 
@@ -378,12 +392,18 @@ export function MultimodalChat({
 
       // Add user message with image indicator and optional text
       const userMsgId = getNextMsgId();
+      const capturedImagePreview = imagePreview; // Capture before clearing
+
+      // Clear image preview immediately so user sees it's been sent
+      setSelectedImage(null);
+      setImagePreview(null);
+
       setMessages(prev => [...prev, {
         id: userMsgId,
         sender: 'user',
-        text: userText ? `📷 ${userText}` : '📷 Photo uploaded',
+        text: userText || '',
         hasImage: true,
-        imageUrl: imagePreview || undefined
+        imageUrl: capturedImagePreview || undefined
       }]);
 
       setIsTyping(true);
@@ -391,103 +411,49 @@ export function MultimodalChat({
       // Convert image to base64
       const base64Image = await fileToBase64(selectedImage);
 
-      // Use the new enhanced image analysis endpoint
-      const result = await apiService.analyzeImage(base64Image, selectedImage.type);
+      // Use unified backend endpoint - returns preferences and response message
+      const result = await apiService.processImageUnified(
+        base64Image,
+        selectedImage.type,
+        userText
+      );
 
-      setIsTyping(false);
+      // Don't set isTyping to false yet - wait until message is added
 
       if (result.success) {
-        console.log('Image analysis result:', result);
+        console.log('Unified image result:', result);
 
-        // Build detected preferences from analysis
-        const detectedPrefs: any = {};
-
-        // Extract cuisine
-        if (result.cuisine_types && result.cuisine_types.length > 0) {
-          const cuisine = result.cuisine_types[0];
-          const cuisineMap: Record<string, string> = {
-            'italian': 'Italian', 'japanese': 'Japanese', 'mexican': 'Mexican',
-            'french': 'French', 'thai': 'Thai', 'indian': 'Indian', 'korean': 'Korean',
-            'chinese': 'Chinese', 'spanish': 'Spanish', 'vietnamese': 'Vietnamese',
-            'greek': 'Greek', 'mediterranean': 'Mediterranean', 'american': 'American'
-          };
-          detectedPrefs.cuisine = cuisineMap[cuisine.toLowerCase()] || cuisine;
+        // Apply detected preferences directly (already mapped by backend)
+        if (Object.keys(result.detected_preferences).length > 0 && onPreferencesDetected) {
+          onPreferencesDetected(result.detected_preferences);
         }
 
-        // Extract price range
-        if (result.price_range) {
-          const priceMap: Record<string, string> = {
-            '$': '$', '$$': '$$', '$$$': '$$$', '$$$$': '$$$$'
-          };
-          detectedPrefs.budget = priceMap[result.price_range] || '$$';
-        }
-
-        // Extract vibe
-        if (result.vibe && result.vibe.length > 0) {
-          const vibeMap: Record<string, string> = {
-            'casual': 'Casual', 'fancy': 'Fine Dining', 'romantic': 'Romantic',
-            'family': 'Family-Friendly', 'trendy': 'Trendy', 'cozy': 'Cozy',
-            'outdoor': 'Outdoor Seating', 'upscale': 'Fine Dining'
-          };
-          detectedPrefs.vibe = vibeMap[result.vibe[0].toLowerCase()] || result.vibe[0];
-        }
-
-        // Call preference callback if we detected anything
-        if (Object.keys(detectedPrefs).length > 0 && onPreferencesDetected) {
-          onPreferencesDetected(detectedPrefs);
-        }
-
-        // Build response message
-        let responseText = '';
-
-        if (result.image_type === 'restaurant') {
-          if (result.restaurant_name) {
-            responseText = `📍 I see a restaurant: **${result.restaurant_name}**! `;
-          } else {
-            responseText = `🏪 I see a restaurant! `;
-          }
-        } else if (result.dishes_detected && result.dishes_detected.length > 0) {
-          responseText = `🍽️ I see: ${result.dishes_detected.join(', ')}! `;
-        } else {
-          responseText = `📷 I analyzed your photo! `;
-        }
-
-        const prefParts = [];
-        if (detectedPrefs.cuisine) prefParts.push(`🍳 Cuisine: ${detectedPrefs.cuisine}`);
-        if (detectedPrefs.budget) prefParts.push(`💰 Budget: ${detectedPrefs.budget}`);
-        if (detectedPrefs.vibe) prefParts.push(`✨ Vibe: ${detectedPrefs.vibe}`);
-
-        if (prefParts.length > 0) {
-          responseText += `\n\nDetected preferences:\n${prefParts.join('\n')}\n\nI've updated your preferences! Anything else to add?`;
-        } else {
-          responseText += `\n\n${result.description || 'Looks delicious!'} Tell me more about what you're looking for.`;
-        }
-
-        setMessages(prev => [...prev, {
+        // Add AI response (already formatted by backend) - use addMessageAndSave
+        setIsTyping(false);
+        addMessageAndSave({
           id: getNextMsgId(),
           sender: 'ai',
-          text: responseText
-        }]);
+          text: result.response_message
+        });
       } else {
-        // Fallback to old method
+        // Fallback error message
+        setIsTyping(false);
         setMessages(prev => [...prev, {
           id: getNextMsgId(),
           sender: 'ai',
-          text: `I see your photo! Try describing what you want in text for better preference detection.`
+          text: result.error || 'I see your photo! Try describing what you want in text for better preference detection.'
         }]);
       }
 
-      // Clear image
-      setSelectedImage(null);
-      setImagePreview(null);
+      // Image already cleared above when message was sent
     } catch (error) {
       console.error('Error sending image:', error);
       setIsTyping(false);
-      setMessages(prev => [...prev, {
+      addMessageAndSave({
         id: getNextMsgId(),
         sender: 'ai',
         text: 'Sorry, I had trouble analyzing that image. Please try again.'
-      }]);
+      });
     }
   };
 
@@ -595,7 +561,7 @@ export function MultimodalChat({
         currentPrefs
       );
 
-      setIsTyping(false);
+      // Don't set isTyping to false yet - wait until message is added
 
       console.log('AI conversation response:', result);
 
@@ -704,11 +670,13 @@ export function MultimodalChat({
         aiMessage = "I'm here to help! What kind of restaurant are you looking for?";
       }
 
-      setMessages(prev => [...prev, {
+      // Stop typing and add message together to avoid lag
+      setIsTyping(false);
+      addMessageAndSave({
         id: getNextMsgId(),
         sender: 'ai',
         text: aiMessage
-      }]);
+      });
     } catch (error: any) {
       console.error('Error sending message:', error);
       setIsTyping(false);
@@ -716,13 +684,13 @@ export function MultimodalChat({
       const errorMsg = error?.message || 'Unknown error';
       const isBackendDown = errorMsg.includes('Network error') || errorMsg.includes('connect');
 
-      setMessages(prev => [...prev, {
+      addMessageAndSave({
         id: getNextMsgId(),
         sender: 'ai',
         text: isBackendDown
           ? '⚠️ Backend server not running. Please start the Python backend: cd backend && python main.py'
           : `Sorry, I encountered an error: ${errorMsg}. Please try again.`
-      }]);
+      });
     }
   };
 
@@ -737,10 +705,11 @@ export function MultimodalChat({
         startRecording,
         stopRecording,
         isRecording,
+        isTyping,
         fileInputRef
       });
     }
-  }, [message, isRecording]);
+  }, [message, isRecording, isTyping]);
 
   // Full-screen mobile mode
   if (fullScreenMode) {
@@ -814,6 +783,13 @@ export function MultimodalChat({
                         border: msg.sender === 'ai' ? '2px solid #d1d5db' : 'none'
                       }}
                     >
+                      {msg.imageUrl && (
+                        <img
+                          src={msg.imageUrl}
+                          alt="Uploaded"
+                          className="w-32 h-32 rounded-lg object-cover mb-2"
+                        />
+                      )}
                       <p className="text-base leading-relaxed">{msg.text}</p>
                     </div>
                   </motion.div>
@@ -841,21 +817,33 @@ export function MultimodalChat({
           )}
         </div>
 
-        {/* Image Preview */}
+        {/* Image Preview - positioned near bottom, above search bar */}
         {imagePreview && (
-          <div className="flex-shrink-0 border-t-2 px-4 py-4" style={{ borderColor: '#d1d5db', backgroundColor: '#ffffff' }}>
+          <div
+            className="flex-shrink-0 px-4 py-3"
+            style={{
+              position: 'absolute',
+              bottom: '140px', // Above search bar and nav
+              left: 0,
+              right: 0,
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+              borderTop: '1px solid #e5e7eb',
+              borderBottom: '1px solid #e5e7eb',
+              backdropFilter: 'blur(8px)'
+            }}
+          >
             <div className="relative inline-block">
-              <img src={imagePreview} alt="Preview" className="h-28 w-28 rounded-2xl object-cover shadow-lg border-2" style={{ borderColor: '#d1d5db' }} />
               <button
                 onClick={() => {
                   setSelectedImage(null);
                   setImagePreview(null);
                 }}
-                className="absolute -right-3 -top-3 rounded-full p-2 shadow-xl"
+                className="absolute -right-2 -top-2 z-10 rounded-full p-1.5 shadow-lg"
                 style={{ backgroundColor: '#ef4444', color: '#ffffff' }}
               >
-                <X className="h-5 w-5" />
+                <X className="h-4 w-4" />
               </button>
+              <img src={imagePreview} alt="Preview" className="h-20 w-20 rounded-xl object-cover shadow-lg border-2" style={{ borderColor: '#d1d5db' }} />
             </div>
           </div>
         )}
@@ -1055,7 +1043,7 @@ export function MultimodalChat({
                   type="text"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                  onKeyPress={(e) => e.key === 'Enter' && !isTyping && handleSendMessage()}
                   placeholder={
                     preferences?.cuisine && preferences?.budget && preferences?.vibe
                       ? "Add more details or lock preferences..."
@@ -1105,7 +1093,7 @@ export function MultimodalChat({
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={handleSendMessage}
-                  disabled={(!message.trim() && !selectedImage) || isRecording}
+                  disabled={(!message.trim() && !selectedImage) || isRecording || isTyping}
                   className="rounded-lg bg-gradient-to-r from-[#F97316] to-[#fb923c] p-2 shadow-lg shadow-orange-500/30 transition-all disabled:opacity-40"
                   title="Send message"
                 >

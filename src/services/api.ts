@@ -346,6 +346,73 @@ class ApiService {
       }),
     });
   }
+
+  // ==================== UNIFIED MULTIMODAL ENDPOINTS ====================
+  // These return ready-to-use preferences - no post-processing needed on frontend
+
+  async processVoiceUnified(
+    audioBase64: string,
+    mimeType: string = 'audio/webm',
+    sessionContext: string = '',
+    currentPreferences: Record<string, string> = {}
+  ): Promise<{
+    success: boolean;
+    transcription: string;
+    detected_preferences: Record<string, string>;
+    ai_response: string;
+    error?: string;
+  }> {
+    return this.request('/api/multimodal/voice', {
+      method: 'POST',
+      body: JSON.stringify({
+        audio_base64: audioBase64,
+        mime_type: mimeType,
+        session_context: sessionContext,
+        current_preferences: currentPreferences,
+      }),
+    });
+  }
+
+  async processImageUnified(
+    imageBase64: string,
+    mimeType: string = 'image/jpeg',
+    userMessage: string = ''
+  ): Promise<{
+    success: boolean;
+    analysis?: any;
+    detected_preferences: Record<string, string>;
+    response_message: string;
+    error?: string;
+  }> {
+    return this.request('/api/multimodal/image', {
+      method: 'POST',
+      body: JSON.stringify({
+        image_base64: imageBase64,
+        mime_type: mimeType,
+        user_message: userMessage,
+      }),
+    });
+  }
+
+  async chatUnified(
+    userMessage: string,
+    sessionContext: string = '',
+    currentPreferences: Record<string, string> = {}
+  ): Promise<{
+    success: boolean;
+    ai_response: string;
+    detected_preferences: Record<string, string>;
+    error?: string;
+  }> {
+    return this.request('/api/multimodal/chat', {
+      method: 'POST',
+      body: JSON.stringify({
+        user_message: userMessage,
+        session_context: sessionContext,
+        current_preferences: currentPreferences,
+      }),
+    });
+  }
 }
 
 

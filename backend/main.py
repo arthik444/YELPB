@@ -468,6 +468,116 @@ async def gemini_chat(request: dict):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ==================== UNIFIED MULTIMODAL ENDPOINTS ====================
+# These endpoints consolidate multimodal processing and return ready-to-use preferences
+
+class UnifiedVoiceRequest(BaseModel):
+    """Request for unified voice processing"""
+    audio_base64: str
+    mime_type: str = "audio/webm"
+    session_context: str = ""
+    current_preferences: Optional[Dict[str, Any]] = None
+
+class UnifiedImageRequest(BaseModel):
+    """Request for unified image processing"""
+    image_base64: str
+    mime_type: str = "image/jpeg"
+    user_message: str = ""
+
+class UnifiedChatRequest(BaseModel):
+    """Request for unified chat with preference extraction"""
+    user_message: str
+    session_context: str = ""
+    current_preferences: Optional[Dict[str, Any]] = None
+
+
+@app.post("/api/multimodal/voice")
+async def process_voice_unified(request: UnifiedVoiceRequest):
+    """
+    Unified voice processing: transcription + preference extraction + AI response
+    
+    Returns:
+        - transcription: what the user said
+        - detected_preferences: mapped preferences ready to apply
+        - ai_response: conversational AI message
+    """
+    try:
+        audio_data = base64.b64decode(request.audio_base64)
+        
+        result = await gemini_service.process_voice_unified(
+            audio_data=audio_data,
+            mime_type=request.mime_type,
+            session_context=request.session_context,
+            current_preferences=request.current_preferences
+        )
+        
+        logger.info(f"Unified voice processed: {result.get('transcription', '')[:50]}...")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in unified voice processing: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/multimodal/image")
+async def process_image_unified(request: UnifiedImageRequest):
+    """
+    Unified image processing: analysis + preference extraction + response message
+    
+    Returns:
+        - analysis: raw image analysis results
+        - detected_preferences: mapped preferences ready to apply
+        - response_message: formatted AI response about the image
+    """
+    try:
+        image_data = base64.b64decode(request.image_base64)
+        
+        result = await gemini_service.process_image_unified(
+            image_data=image_data,
+            mime_type=request.mime_type,
+            user_message=request.user_message
+        )
+        
+        logger.info(f"Unified image processed")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in unified image processing: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/multimodal/chat")
+async def chat_unified(request: UnifiedChatRequest):
+    """
+    Unified chat: AI response + preference extraction in one call
+    
+    Returns:
+        - ai_response: conversational message from AI
+        - detected_preferences: any preferences extracted from the message
+    """
+    try:
+        if not request.user_message:
+            return {
+                "success": False,
+                "error": "No user_message provided",
+                "ai_response": "",
+                "detected_preferences": {}
+            }
+        
+        result = await gemini_service.chat_unified(
+            user_message=request.user_message,
+            session_context=request.session_context,
+            current_preferences=request.current_preferences
+        )
+        
+        logger.info(f"Unified chat: {request.user_message[:50]}...")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in unified chat: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Google Calendar Integration Endpoints
 
 # In-memory store for OAuth state (use Redis/DB in production)
