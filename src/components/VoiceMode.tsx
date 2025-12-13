@@ -57,12 +57,13 @@ export function VoiceMode({ isOpen, onClose, onTranscription, onAIResponse, onPr
         }
     };
 
-    // Auto-start listening when opened
+    // Keep a ref to current voiceState for use in useEffect without causing re-runs
+    const voiceStateRef = useRef(voiceState);
     useEffect(() => {
-        if (isOpen && voiceState === 'idle') {
-            startListening();
-        }
-    }, [isOpen]);
+        voiceStateRef.current = voiceState;
+    }, [voiceState]);
+
+
 
     const startListening = async () => {
         try {
@@ -178,29 +179,39 @@ export function VoiceMode({ isOpen, onClose, onTranscription, onAIResponse, onPr
                 const transcriptResult = await apiService.transcribeAudio(base64Audio, 'audio/webm');
                 const text = transcriptResult.transcription || '';
                 setTranscription(text);
-                onTranscription(text);
 
                 // Track if this was a valid transcription (for restart logic)
                 const isValidTranscription = text &&
                     !text.toLowerCase().includes('no speech') &&
                     !text.toLowerCase().includes('no clear speech') &&
-                    !text.toLowerCase().includes('typing sound');
+                    !text.toLowerCase().includes('no discernible') &&
+                    !text.toLowerCase().includes('typing sound') &&
+                    text.trim().length > 0;
                 lastValidTranscriptionRef.current = isValidTranscription;
                 console.log('Transcription valid:', isValidTranscription, 'Text:', text);
 
-                // Analyze for preferences
-                if (transcriptResult.analysis) {
-                    onPreferencesDetected?.(transcriptResult.analysis);
+                // Only send to chat if it's a valid transcription
+                if (isValidTranscription) {
+                    onTranscription(text);
+
+                    // Analyze for preferences
+                    if (transcriptResult.analysis) {
+                        onPreferencesDetected?.(transcriptResult.analysis);
+                    }
+
+                    // Generate AI response (simplified for demo)
+                    const responseText = generateResponse(text, transcriptResult.analysis);
+                    setAiResponse(responseText);
+                    onAIResponse(responseText); // Send AI response to chat
+
+                    // Convert to speech
+                    setVoiceState('speaking');
+                    await speakResponse(responseText);
+                } else {
+                    // Invalid transcription - just go back to idle, don't send to chat
+                    console.log('Invalid transcription, not sending to chat');
+                    setVoiceState('idle');
                 }
-
-                // Generate AI response (simplified for demo)
-                const responseText = generateResponse(text, transcriptResult.analysis);
-                setAiResponse(responseText);
-                onAIResponse(responseText); // Send AI response to chat
-
-                // Convert to speech
-                setVoiceState('speaking');
-                await speakResponse(responseText);
             };
             reader.readAsDataURL(audioBlob);
         } catch (error) {
@@ -266,38 +277,127 @@ export function VoiceMode({ isOpen, onClose, onTranscription, onAIResponse, onPr
     };
 
     const speakResponse = async (text: string) => {
-        // Use browser speech directly - it's fast and reliable
-        if ('speechSynthesis' in window) {
-            // Cancel any ongoing speech first
-            window.speechSynthesis.cancel();
+        try {
+            console.log('Generating TTS for:', text);
 
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.rate = 1.0;
-            utterance.pitch = 1.0;
+            // Use Gemini TTS API
+            const result = await apiService.textToSpeech(text);
 
-            utterance.onend = () => {
-                console.log('Speech ended, waiting before restart...');
-                setVoiceState('idle');
-                // Always restart after speaking if modal is still open and last transcription was valid
-                setTimeout(() => {
-                    if (isOpen && lastValidTranscriptionRef.current) {
-                        console.log('Restarting listening...');
-                        startListening();
-                    } else {
-                        console.log('Not restarting - modal closed or invalid transcription');
-                    }
-                }, 1000);
-            };
+            if (result.success && result.audio_base64 && result.mime_type) {
+                // Create audio from base64
+                const audioData = atob(result.audio_base64);
+                const audioBytes = new Uint8Array(audioData.length);
+                for (let i = 0; i < audioData.length; i++) {
+                    audioBytes[i] = audioData.charCodeAt(i);
+                }
 
-            utterance.onerror = (e) => {
-                console.error('Speech synthesis error:', e);
-                setVoiceState('idle');
-            };
+                // Check if it's raw PCM data that needs WAV headers
+                let audioBlob: Blob;
+                if (result.mime_type.includes('L16') || result.mime_type.includes('pcm')) {
+                    // Convert raw PCM to WAV
+                    console.log('Converting PCM to WAV...');
+                    const sampleRate = 24000;  // Gemini TTS uses 24kHz
+                    const numChannels = 1;
+                    const bitsPerSample = 16;
 
-            window.speechSynthesis.speak(utterance);
-            console.log('Speaking:', text);
-        } else {
-            console.error('No speech synthesis available');
+                    // Create WAV header
+                    const wavHeader = new ArrayBuffer(44);
+                    const view = new DataView(wavHeader);
+
+                    // "RIFF" chunk descriptor
+                    view.setUint8(0, 'R'.charCodeAt(0));
+                    view.setUint8(1, 'I'.charCodeAt(0));
+                    view.setUint8(2, 'F'.charCodeAt(0));
+                    view.setUint8(3, 'F'.charCodeAt(0));
+                    view.setUint32(4, 36 + audioBytes.length, true);  // File size
+                    view.setUint8(8, 'W'.charCodeAt(0));
+                    view.setUint8(9, 'A'.charCodeAt(0));
+                    view.setUint8(10, 'V'.charCodeAt(0));
+                    view.setUint8(11, 'E'.charCodeAt(0));
+
+                    // "fmt " sub-chunk
+                    view.setUint8(12, 'f'.charCodeAt(0));
+                    view.setUint8(13, 'm'.charCodeAt(0));
+                    view.setUint8(14, 't'.charCodeAt(0));
+                    view.setUint8(15, ' '.charCodeAt(0));
+                    view.setUint32(16, 16, true);  // Subchunk1Size (16 for PCM)
+                    view.setUint16(20, 1, true);   // AudioFormat (1 for PCM)
+                    view.setUint16(22, numChannels, true);
+                    view.setUint32(24, sampleRate, true);
+                    view.setUint32(28, sampleRate * numChannels * bitsPerSample / 8, true);  // ByteRate
+                    view.setUint16(32, numChannels * bitsPerSample / 8, true);  // BlockAlign
+                    view.setUint16(34, bitsPerSample, true);
+
+                    // "data" sub-chunk
+                    view.setUint8(36, 'd'.charCodeAt(0));
+                    view.setUint8(37, 'a'.charCodeAt(0));
+                    view.setUint8(38, 't'.charCodeAt(0));
+                    view.setUint8(39, 'a'.charCodeAt(0));
+                    view.setUint32(40, audioBytes.length, true);
+
+                    // Combine header and audio data
+                    const wavBytes = new Uint8Array(wavHeader.byteLength + audioBytes.length);
+                    wavBytes.set(new Uint8Array(wavHeader), 0);
+                    wavBytes.set(audioBytes, 44);
+
+                    audioBlob = new Blob([wavBytes], { type: 'audio/wav' });
+                } else {
+                    audioBlob = new Blob([audioBytes], { type: result.mime_type });
+                }
+
+                const audioUrl = URL.createObjectURL(audioBlob);
+
+                // Create and play audio
+                const audio = new Audio(audioUrl);
+                audioRef.current = audio;
+
+                audio.onended = () => {
+                    console.log('TTS audio ended, waiting before restart...');
+                    URL.revokeObjectURL(audioUrl);
+                    setVoiceState('idle');
+                    // Always restart after speaking if modal is still open and last transcription was valid
+                    setTimeout(() => {
+                        if (isOpen && lastValidTranscriptionRef.current) {
+                            console.log('Restarting listening...');
+                            startListening();
+                        } else {
+                            console.log('Not restarting - modal closed or invalid transcription');
+                        }
+                    }, 1000);
+                };
+
+                audio.onerror = (e) => {
+                    console.error('TTS audio playback error:', e);
+                    URL.revokeObjectURL(audioUrl);
+                    setVoiceState('idle');
+                };
+
+                await audio.play();
+                console.log('Playing TTS audio');
+            } else {
+                // Fallback to browser speech synthesis
+                console.warn('TTS API failed, falling back to browser speech:', result.error);
+                if ('speechSynthesis' in window) {
+                    window.speechSynthesis.cancel();
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.rate = 1.0;
+                    utterance.pitch = 1.0;
+                    utterance.onend = () => {
+                        setVoiceState('idle');
+                        setTimeout(() => {
+                            if (isOpen && lastValidTranscriptionRef.current) {
+                                startListening();
+                            }
+                        }, 1000);
+                    };
+                    utterance.onerror = () => setVoiceState('idle');
+                    window.speechSynthesis.speak(utterance);
+                } else {
+                    setVoiceState('idle');
+                }
+            }
+        } catch (error) {
+            console.error('TTS error:', error);
             setVoiceState('idle');
         }
     };
@@ -311,16 +411,33 @@ export function VoiceMode({ isOpen, onClose, onTranscription, onAIResponse, onPr
     };
 
     const handleClose = () => {
-        if (mediaRecorderRef.current && voiceState === 'listening') {
-            mediaRecorderRef.current.stop();
+        // Stop media recorder regardless of state
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            try {
+                mediaRecorderRef.current.stop();
+            } catch (e) {
+                console.log('Media recorder already stopped');
+            }
         }
+
+        // Stop any playing audio
         if (audioRef.current) {
             audioRef.current.pause();
+            audioRef.current = null;
         }
-        if (streamRef.current) {
-            streamRef.current.getTracks().forEach(track => track.stop());
+
+        // Cancel browser speech if running
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
         }
+
+        // Full cleanup - stops mic stream
+        cleanup();
+        isRecordingRef.current = false;
+
         setVoiceState('idle');
+        setTranscription('');
+        setAiResponse('');
         onClose();
     };
 
@@ -336,6 +453,21 @@ export function VoiceMode({ isOpen, onClose, onTranscription, onAIResponse, onPr
                 return 'Tap to speak';
         }
     };
+
+    // Auto-start listening when opened, cleanup when closed
+    useEffect(() => {
+        if (isOpen && voiceStateRef.current === 'idle') {
+            startListening();
+        } else if (!isOpen) {
+            // Stop recording and cleanup when modal closes
+            cleanup();
+            isRecordingRef.current = false;
+            setVoiceState('idle');
+            setTranscription('');
+            setAiResponse('');
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen]);
 
     return (
         <AnimatePresence>

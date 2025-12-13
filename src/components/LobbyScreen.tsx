@@ -104,6 +104,7 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
     stopRecording: () => void;
     isRecording: boolean;
     isTyping: boolean;
+    openVoiceMode: () => void;
     fileInputRef: React.RefObject<HTMLInputElement | null>;
   } | null>(null);
 
@@ -1122,20 +1123,14 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
                   <ImageIcon className="h-5 w-5" style={{ color: '#6b7280' }} />
                 </motion.button>
 
-                {/* Voice Button */}
+                {/* Voice Mode Button */}
                 <motion.button
                   whileTap={{ scale: 0.9 }}
-                  onClick={() => {
-                    if (chatHandlers?.isRecording) {
-                      chatHandlers.stopRecording();
-                    } else {
-                      chatHandlers?.startRecording();
-                    }
-                  }}
+                  onClick={() => chatHandlers?.openVoiceMode()}
                   className="flex-shrink-0 w-9 h-9 flex items-center justify-center"
-                  title={chatHandlers?.isRecording ? "Stop recording" : "Voice input"}
+                  title="Voice mode"
                 >
-                  <Mic className="h-5 w-5" style={{ color: chatHandlers?.isRecording ? '#ef4444' : '#6b7280' }} />
+                  <Mic className="h-5 w-5" style={{ color: '#6b7280' }} />
                 </motion.button>
 
                 {/* Text Input */}
