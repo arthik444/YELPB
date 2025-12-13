@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, Mic, Image as ImageIcon, Camera, X, Loader2, ChevronDown, MessageCircle, Sparkles } from 'lucide-react';
+import { Send, Mic, Image as ImageIcon, Camera, X, Loader2, ChevronDown, MessageCircle, Sparkles, MessageSquare } from 'lucide-react';
 import { apiService } from '../services/api';
 import { VoiceMode } from './VoiceMode';
 
@@ -54,12 +54,24 @@ interface MultimodalChatProps {
   sessionCode?: string;
   currentUserName?: string; // Name of the user currently chatting
   minimized?: boolean;
+  fullScreenMode?: boolean; // Mobile full-screen mode
   onToggleMinimized?: () => void;
   onPreferencesDetected?: (prefs: {
     cuisine?: string;
     budget?: string;
     vibe?: string;
     dietary?: string;
+  }) => void;
+  // Expose chat handlers for external control
+  onGetChatHandlers?: (handlers: {
+    message: string;
+    setMessage: (msg: string) => void;
+    handleSendMessage: () => void;
+    handleImageSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    startRecording: () => void;
+    stopRecording: () => void;
+    isRecording: boolean;
+    fileInputRef: React.RefObject<HTMLInputElement>;
   }) => void;
 }
 
@@ -71,8 +83,10 @@ export function MultimodalChat({
   sessionCode,
   currentUserName,
   minimized = false,
+  fullScreenMode = false,
   onToggleMinimized,
-  onPreferencesDetected
+  onPreferencesDetected,
+  onGetChatHandlers
 }: MultimodalChatProps) {
   const getWelcomeMessage = () => {
     if (onlineUsers.length > 1) {
@@ -95,10 +109,10 @@ export function MultimodalChat({
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [voiceModeOpen, setVoiceModeOpen] = useState(false);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageIdRef = useRef(Date.now()); // Counter for unique message IDs
 
   // Generate unique message ID
@@ -712,12 +726,156 @@ export function MultimodalChat({
     }
   };
 
+  // Expose handlers to parent component (placed after all functions are defined)
+  useEffect(() => {
+    if (onGetChatHandlers) {
+      onGetChatHandlers({
+        message,
+        setMessage,
+        handleSendMessage,
+        handleImageSelect,
+        startRecording,
+        stopRecording,
+        isRecording,
+        fileInputRef
+      });
+    }
+  }, [message, isRecording]);
+
+  // Full-screen mobile mode
+  if (fullScreenMode) {
+    return (
+      <div className="flex flex-col flex-1 w-full bg-gray-100" style={{ position: 'relative', minHeight: 0 }}>
+        {/* Messages Area - scrollable with padding for search bar */}
+        <div
+          className="px-4 py-6 bg-gray-100 [&::-webkit-scrollbar]:hidden"
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            paddingBottom: '140px', // Space for search bar (60px) + nav bar (60px) + margin (20px)
+            overflowY: 'auto', // Enable vertical scrolling
+            overflowX: 'hidden', // Prevent horizontal scrolling
+            WebkitOverflowScrolling: 'touch', // Smooth scrolling on iOS
+            overscrollBehavior: 'contain', // Prevent pull-to-refresh on mobile
+            scrollbarWidth: 'none', // Hide scrollbar in Firefox
+            msOverflowStyle: 'none' // Hide scrollbar in IE/Edge
+          }}
+        >
+          {messages.length === 0 ? (
+            // Empty state
+            <div className="flex flex-col items-center justify-center h-full text-center px-6">
+              <div className="w-20 h-20 rounded-full mb-6 flex items-center justify-center" style={{ backgroundColor: '#F05A28' }}>
+                <MessageSquare className="h-10 w-10" style={{ color: '#ffffff' }} />
+              </div>
+              <h3 className="text-2xl font-bold mb-3" style={{ color: '#1C1917' }}>Chat with AI Assistant</h3>
+              <p className="text-base mb-6" style={{ color: '#6b7280' }}>
+                Ask about restaurants, get recommendations, or just chat!
+              </p>
+              <div className="space-y-3 w-full max-w-sm">
+                <button
+                  onClick={() => {
+                    setMessage("What Italian restaurants are nearby?");
+                  }}
+                  className="w-full text-left px-5 py-4 rounded-2xl shadow-md transition-all"
+                  style={{ backgroundColor: '#ffffff', border: '2px solid #d1d5db', color: '#1C1917' }}
+                >
+                  <p className="text-base font-medium">💭 "What Italian restaurants are nearby?"</p>
+                </button>
+                <button
+                  onClick={() => {
+                    setMessage("Find me a romantic dinner spot");
+                  }}
+                  className="w-full text-left px-5 py-4 rounded-2xl shadow-md transition-all"
+                  style={{ backgroundColor: '#ffffff', border: '2px solid #d1d5db', color: '#1C1917' }}
+                >
+                  <p className="text-base font-medium">🕯️ "Find me a romantic dinner spot"</p>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4 pb-4">
+              <AnimatePresence mode="popLayout">
+                {messages.map((msg) => (
+                  <motion.div
+                    key={msg.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className="max-w-[80%] rounded-2xl px-5 py-4 shadow-lg"
+                      style={{
+                        backgroundColor: msg.sender === 'ai' ? '#ffffff' : '#1C1917',
+                        color: msg.sender === 'ai' ? '#1C1917' : '#ffffff',
+                        border: msg.sender === 'ai' ? '2px solid #d1d5db' : 'none'
+                      }}
+                    >
+                      <p className="text-base leading-relaxed">{msg.text}</p>
+                    </div>
+                  </motion.div>
+                ))}
+                {isTyping && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
+                    <div className="rounded-2xl border-2 px-5 py-4 shadow-lg" style={{ backgroundColor: '#ffffff', borderColor: '#d1d5db' }}>
+                      <div className="flex gap-2">
+                        {[0, 1, 2].map((i) => (
+                          <motion.div
+                            key={i}
+                            className="h-3 w-3 rounded-full"
+                            style={{ backgroundColor: '#6b7280' }}
+                            animate={{ y: [0, -8, 0] }}
+                            transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.2 }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              <div ref={messagesEndRef} />
+            </div>
+          )}
+        </div>
+
+        {/* Image Preview */}
+        {imagePreview && (
+          <div className="flex-shrink-0 border-t-2 px-4 py-4" style={{ borderColor: '#d1d5db', backgroundColor: '#ffffff' }}>
+            <div className="relative inline-block">
+              <img src={imagePreview} alt="Preview" className="h-28 w-28 rounded-2xl object-cover shadow-lg border-2" style={{ borderColor: '#d1d5db' }} />
+              <button
+                onClick={() => {
+                  setSelectedImage(null);
+                  setImagePreview(null);
+                }}
+                className="absolute -right-3 -top-3 rounded-full p-2 shadow-xl"
+                style={{ backgroundColor: '#ef4444', color: '#ffffff' }}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Hide scrollbar CSS */}
+        <style>{`
+          .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  //Original floating bubble mode
   return (
     <motion.div
       initial={{ scale: 0, opacity: 0 }}
       animate={{
         scale: 1,
-        opacity: 1,
         borderRadius: minimized ? '9999px' : '16px'
       }}
       transition={{

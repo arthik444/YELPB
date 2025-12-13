@@ -262,6 +262,14 @@ class SessionService {
     });
   }
 
+  // Add activity to session (stored in Firebase events subcollection)
+  async addActivity(sessionCode: string, activity: Omit<Activity, 'id'>): Promise<void> {
+    const activitiesRef = this.getActivitiesRef(sessionCode);
+    await addDoc(activitiesRef, {
+      ...activity,
+      timestamp: activity.timestamp || Date.now()
+    });
+  }
 
 
   // Mark a user as finished with swiping
