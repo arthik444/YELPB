@@ -71,6 +71,8 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [flippedCards, setFlippedCards] = useState<Set<string | number>>(new Set());
+  const [activeTab, setActiveTab] = useState<'overview' | 'menu' | 'details'>('overview');
+  const [swipeHistory, setSwipeHistory] = useState<Array<{ index: number, direction: 'left' | 'right', restaurant: Restaurant }>>([]);
 
   const [isResolvingTie, setIsResolvingTie] = useState(false);
   const [loadingMenus, setLoadingMenus] = useState<Set<string | number>>(new Set());
@@ -302,10 +304,10 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
   // Tie breaking loading screen
   if (isResolvingTie) {
     return (
-      <div className="flex h-screen w-full flex-col items-center justify-center bg-black px-6">
+      <div className="flex h-screen w-full flex-col items-center justify-center bg-white px-6">
         {/* Animated background glow */}
         <motion.div
-          className="absolute inset-0 bg-gradient-radial from-orange-500/5 via-transparent to-transparent"
+          className="absolute inset-0 bg-gradient-radial from-orange-100 via-transparent to-transparent"
           animate={{
             scale: [1, 1.2, 1],
             opacity: [0.3, 0.5, 0.3],
@@ -346,7 +348,7 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
 
         {/* Subtitle */}
         <motion.p
-          className="text-gray-400 mb-12 max-w-md text-center text-lg"
+          className="text-gray-600 mb-12 max-w-md text-center text-lg"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4 }}
@@ -389,7 +391,7 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
 
         {/* AI thinking indicator */}
         <motion.div
-          className="flex items-center gap-2 text-orange-500/70 text-sm"
+          className="flex items-center gap-2 text-orange-600 text-sm"
           initial={{ opacity: 0 }}
           animate={{ opacity: [0.5, 1, 0.5] }}
           transition={{
@@ -409,12 +411,12 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
 
   if (loading || isInitialLoad) {
     return (
-      <div className="flex h-screen w-full flex-col items-center justify-center bg-black">
+      <div className="flex h-screen w-full flex-col items-center justify-center bg-white">
         {/* Simple gradient background */}
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            background: 'radial-gradient(ellipse at center, rgba(249,115,22,0.12) 0%, rgba(0,0,0,0) 60%)',
+            background: 'radial-gradient(ellipse at center, rgba(249,115,22,0.08) 0%, rgba(255,255,255,0) 60%)',
           }}
         />
 
@@ -423,13 +425,13 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
           {/* Spinner container */}
           <div className="relative h-24 w-24 mb-6">
             {/* Glow effect */}
-            <div className="absolute inset-0 rounded-full bg-[#F97316]/20 blur-2xl animate-pulse" />
+            <div className="absolute inset-0 rounded-full bg-[#F97316]/10 blur-2xl animate-pulse" />
 
             {/* Spinning ring */}
             <motion.div
               animate={{ rotate: 360 }}
               transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-              className="absolute inset-2 rounded-full border-4 border-gray-800/50 border-t-[#F97316] border-r-orange-400"
+              className="absolute inset-2 rounded-full border-4 border-gray-200 border-t-[#F97316] border-r-orange-400"
             />
 
             {/* Center emoji */}
@@ -451,8 +453,8 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
               initial={{ opacity: 0, y: 5 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -5 }}
-              className="text-lg text-white mb-3"
-              style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600 }}
+              className="text-lg text-gray-900 mb-3"
+              style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 600, color: '#111827' }}
             >
               {loadingPhases[loadingPhase]?.message || 'Loading...'}
             </motion.p>
@@ -460,7 +462,7 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
 
           {/* Progress bar */}
           <div className="w-48 mb-5">
-            <div className="h-1 w-full overflow-hidden rounded-full bg-gray-800">
+            <div className="h-1 w-full overflow-hidden rounded-full bg-gray-200">
               <motion.div
                 className="h-full bg-gradient-to-r from-[#F97316] to-orange-400"
                 initial={{ width: '0%' }}
@@ -468,7 +470,7 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
                 transition={{ duration: 0.3 }}
               />
             </div>
-            <p className="mt-1.5 text-xs text-gray-500">{Math.min(loadingProgress, 100)}%</p>
+            <p className="mt-1.5 text-xs text-gray-500" style={{ color: '#6b7280' }}>{Math.min(loadingProgress, 100)}%</p>
           </div>
 
           {/* Preferences summary */}
@@ -477,27 +479,27 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.3 }}
-              className="rounded-xl border border-white/10 bg-white/5 px-4 py-3"
+              className="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm"
             >
-              <p className="mb-2 text-[10px] text-gray-400 uppercase tracking-wider">Looking for</p>
+              <p className="mb-2 text-[10px] text-gray-500 uppercase tracking-wider">Looking for</p>
               <div className="flex flex-wrap items-center justify-center gap-1.5">
                 {preferences.cuisine && (
-                  <span className="rounded-full bg-[#F97316]/20 px-2.5 py-0.5 text-xs text-[#F97316]">
+                  <span className="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs text-orange-700 font-medium">
                     {preferences.cuisine}
                   </span>
                 )}
                 {preferences.budget && (
-                  <span className="rounded-full bg-green-500/20 px-2.5 py-0.5 text-xs text-green-400">
+                  <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs text-green-700 font-medium">
                     {preferences.budget}
                   </span>
                 )}
                 {preferences.vibe && (
-                  <span className="rounded-full bg-purple-500/20 px-2.5 py-0.5 text-xs text-purple-400">
+                  <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-xs text-purple-700 font-medium">
                     {preferences.vibe}
                   </span>
                 )}
                 {preferences.dietary && preferences.dietary !== 'None' && (
-                  <span className="rounded-full bg-blue-500/20 px-2.5 py-0.5 text-xs text-blue-400">
+                  <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs text-blue-700 font-medium">
                     {preferences.dietary}
                   </span>
                 )}
@@ -527,12 +529,12 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
 
   if (error) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-black">
+      <div className="flex h-screen w-full items-center justify-center bg-white">
         <div className="text-center">
-          <p className="text-red-500">{error}</p>
+          <p className="text-red-600 font-medium" style={{ color: '#dc2626' }}>{error}</p>
           <button
             onClick={() => fetchRestaurants()}
-            className="mt-4 rounded-lg bg-[#F97316] px-6 py-2 text-white hover:bg-orange-600"
+            className="mt-4 rounded-lg bg-[#f97316] px-6 py-2 text-white hover:bg-orange-600 shadow-md"
           >
             Retry
           </button>
@@ -547,7 +549,7 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
       const progress = totalUserCount > 0 ? (finishedUserCount / totalUserCount) * 100 : 0;
 
       return (
-        <div className="flex h-screen w-full flex-col items-center justify-center bg-black px-6 text-center">
+        <div className="flex h-screen w-full flex-col items-center justify-center bg-white px-6 text-center">
           {/* Animated Icon */}
           <motion.div
             className="mb-8 relative"
@@ -557,7 +559,7 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
           >
             {/* Pulsing rings */}
             <motion.div
-              className="absolute inset-0 rounded-full bg-orange-500/20"
+              className="absolute inset-0 rounded-full bg-orange-200"
               animate={{
                 scale: [1, 1.3, 1],
                 opacity: [0.3, 0, 0.3],
@@ -569,7 +571,7 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
               }}
             />
             <motion.div
-              className="absolute inset-0 rounded-full bg-orange-500/20"
+              className="absolute inset-0 rounded-full bg-orange-200"
               animate={{
                 scale: [1, 1.5, 1],
                 opacity: [0.2, 0, 0.2],
@@ -583,7 +585,7 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
             />
 
             {/* Icon container */}
-            <div className="relative mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-orange-500/30 to-orange-600/30 backdrop-blur-sm border border-orange-500/30">
+            <div className="relative mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-orange-100 border-2 border-orange-300">
               {isOwner ? (
                 <motion.div
                   animate={{
@@ -596,7 +598,7 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
                     ease: "easeInOut",
                   }}
                 >
-                  <Award className="h-12 w-12 text-orange-500" />
+                  <Award className="h-12 w-12 text-orange-600" />
                 </motion.div>
               ) : (
                 <motion.div
@@ -607,7 +609,7 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
                     ease: "linear",
                   }}
                 >
-                  <Loader2 className="h-12 w-12 text-orange-500" />
+                  <Loader2 className="h-12 w-12 text-orange-600" />
                 </motion.div>
               )}
             </div>
@@ -615,7 +617,8 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
 
           {/* Title */}
           <motion.h2
-            className="mb-2 text-3xl font-bold text-white"
+            className="mb-2 text-3xl font-bold"
+            style={{ color: '#111827' }}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
@@ -625,7 +628,8 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
 
           {/* Subtitle */}
           <motion.p
-            className="mb-6 text-gray-400 max-w-sm"
+            className="mb-6 max-w-sm"
+            style={{ color: '#6b7280' }}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.3 }}
@@ -644,28 +648,32 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
               transition={{ delay: 0.4 }}
             >
               {/* User count badge */}
-              <div className="mb-4 inline-block rounded-full bg-gradient-to-r from-orange-500/20 to-orange-600/20 px-6 py-2 text-sm font-semibold text-orange-400 border border-orange-500/30">
+              <div className="mb-4 inline-block rounded-full px-6 py-2 text-sm font-semibold border-2" style={{ backgroundColor: '#ffedd5', color: '#c2410c', borderColor: '#fdba74' }}>
                 {finishedUserCount} / {totalUserCount > 0 ? totalUserCount : '?'} Users Finished
               </div>
 
               {/* Progress bar */}
-              <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden">
+              <div className="h-3 w-full overflow-hidden rounded-full" style={{ backgroundColor: '#fed7aa' }}>
                 <motion.div
-                  className="h-full bg-gradient-to-r from-orange-500 to-orange-600 rounded-full"
+                  className="h-full rounded-full"
+                  style={{ backgroundColor: '#f97316' }}
                   initial={{ width: 0 }}
                   animate={{ width: `${progress}%` }}
-                  transition={{ duration: 0.5, ease: "easeOut" }}
+                  transition={{ duration: 0.5 }}
                 />
               </div>
+
+              {/* Progress percentage */}
+              <p className="mt-2 text-sm" style={{ color: '#6b7280' }}>
+                {Math.round(progress)}% Complete
+              </p>
 
               {/* User avatars/indicators */}
               <div className="flex justify-center gap-2 mt-4">
                 {Array.from({ length: totalUserCount > 0 ? totalUserCount : 0 }).map((_, i) => (
                   <motion.div
                     key={i}
-                    className={`w-3 h-3 rounded-full ${i < finishedUserCount
-                      ? 'bg-orange-500'
-                      : 'bg-gray-700'
+                    className={`w-3 h-3 rounded-full ${i < finishedUserCount ? 'bg-orange-500' : 'bg-gray-300'
                       }`}
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
@@ -713,10 +721,13 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
                   setIsResolvingTie(false);
                 }
               }}
-              className={`rounded-xl px-8 py-4 font-bold text-white transition-all shadow-lg ${totalUserCount === 0 || finishedUserCount < totalUserCount
-                ? 'bg-gray-700 cursor-not-allowed opacity-50'
-                : 'bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 hover:shadow-orange-500/50'
+              className={`rounded-xl px-8 py-4 font-bold transition-all shadow-lg ${totalUserCount === 0 || finishedUserCount < totalUserCount
+                ? 'bg-gray-300 cursor-not-allowed opacity-50'
+                : 'bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 hover:shadow-xl'
                 }`}
+              style={{
+                color: totalUserCount === 0 || finishedUserCount < totalUserCount ? '#6b7280' : '#ffffff'
+              }}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.6 }}
@@ -746,8 +757,8 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
 
   if (restaurants.length === 0) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-black">
-        <p className="text-white">No restaurants found.</p>
+      <div className="flex h-screen w-full items-center justify-center bg-white">
+        <p className="text-gray-900" style={{ color: '#111827' }}>No restaurants found.</p>
       </div>
     );
   }
@@ -757,6 +768,13 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
 
   const handleSwipe = async (swipeDirection: 'left' | 'right') => {
     const currentRestaurant = restaurants[currentIndex];
+
+    // Track swipe history for undo
+    setSwipeHistory(prev => [...prev, {
+      index: currentIndex,
+      direction: swipeDirection,
+      restaurant: currentRestaurant
+    }]);
 
     if (swipeDirection === 'right' && currentRestaurant) {
       // ... (existing like logic)
@@ -923,6 +941,25 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
     }
   };
 
+  const handleUndo = () => {
+    if (swipeHistory.length === 0 || currentIndex === 0) return;
+
+    const lastSwipe = swipeHistory[swipeHistory.length - 1];
+
+    // Remove last swipe from history
+    setSwipeHistory(prev => prev.slice(0, -1));
+
+    // If it was a right swipe, remove from liked restaurants
+    if (lastSwipe.direction === 'right') {
+      setLikedRestaurants(prev => prev.filter(r => r.id !== lastSwipe.restaurant.id.toString()));
+    }
+
+    // Go back to previous card
+    setCurrentIndex(lastSwipe.index);
+    setDirection(null);
+    setShowInfo(false);
+  };
+
   if (!currentRestaurant) return null;
 
   return (
@@ -953,11 +990,31 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
           isFlipped={flippedCards.has(currentRestaurant.id)}
           onFlip={() => handleFlip(currentRestaurant.id)}
           isLoadingMenu={loadingMenus.has(currentRestaurant.id)}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          preferences={preferences}
         />
       </AnimatePresence>
 
       {/* Progress indicator */}
       <div className="absolute left-0 right-0 top-6 z-30 px-6">
+        {/* Undo Button - top left */}
+        {swipeHistory.length > 0 && currentIndex > 0 && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={handleUndo}
+            className="absolute left-6 flex items-center gap-2 rounded-full px-4 py-2.5 shadow-lg transition-all"
+            style={{ backgroundColor: '#ffffff', border: '2px solid #d1d5db' }}
+          >
+            <RotateCcw className="h-4 w-4" style={{ color: '#6b7280' }} />
+            <span className="text-sm font-semibold" style={{ color: '#374151' }}>Undo</span>
+          </motion.button>
+        )}
+
         <div className="flex justify-between gap-1.5">
           {restaurants.map((_, index) => (
             <motion.div
@@ -1041,6 +1098,23 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
             <X className="h-8 w-8" style={{ color: '#ef4444' }} strokeWidth={2.5} />
           </motion.button>
 
+          {/* Info Button - Middle */}
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.92 }}
+            onClick={() => setShowInfo(!showInfo)}
+            className="flex items-center justify-center rounded-full transition-all active:scale-90"
+            style={{
+              backgroundColor: '#ffffff',
+              width: '64px',
+              height: '64px',
+              border: '2px solid #d1d5db',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+            }}
+          >
+            <Info className="h-6 w-6" style={{ color: '#6b7280', stroke: '#6b7280' }} strokeWidth={2.5} />
+          </motion.button>
+
           {/* Like Button - Primary */}
           <motion.button
             whileHover={{ scale: 1.05 }}
@@ -1079,9 +1153,12 @@ interface SwipeCardProps {
   isFlipped: boolean;
   onFlip: () => void;
   isLoadingMenu: boolean;
+  activeTab: 'overview' | 'menu' | 'details';
+  setActiveTab: (tab: 'overview' | 'menu' | 'details') => void;
+  preferences: any;
 }
 
-function SwipeCard({ restaurant, onSwipe, direction, showInfo, isFlipped, onFlip, isLoadingMenu }: SwipeCardProps) {
+function SwipeCard({ restaurant, onSwipe, direction, showInfo, onToggleInfo, isFlipped, onFlip, isLoadingMenu, activeTab, setActiveTab, preferences }: SwipeCardProps) {
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-300, 300], [-30, 30]);
   const opacity = useTransform(x, [-300, -150, 0, 150, 300], [0.5, 1, 1, 1, 0.5]);
@@ -1172,9 +1249,263 @@ function SwipeCard({ restaurant, onSwipe, direction, showInfo, isFlipped, onFlip
 
               {/* Info Section - Bottom 35% with white background */}
               <div
-                className="flex-1 flex flex-col p-5 rounded-b-3xl"
+                className="flex-1 flex flex-col p-5 rounded-b-3xl relative"
                 style={{ backgroundColor: '#ffffff' }}
               >
+                {/* Info Modal - shows as full overlay when info button is clicked */}
+                <AnimatePresence>
+                  {showInfo && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="fixed inset-0 z-50 flex items-end bg-black/50 backdrop-blur-sm"
+                      onClick={(e) => { e.stopPropagation(); onToggleInfo(); }}
+                    >
+                      <motion.div
+                        initial={{ y: '100%' }}
+                        animate={{ y: 0 }}
+                        exit={{ y: '100%' }}
+                        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+                        className="w-full max-h-[80vh] rounded-t-3xl bg-white shadow-2xl overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {/* Handle bar */}
+                        <div className="flex justify-center pt-3 pb-2">
+                          <div className="w-12 h-1 rounded-full bg-gray-300" />
+                        </div>
+
+                        {/* Header with Tabs */}
+                        <div className="border-b border-gray-200">
+                          <div className="flex items-center justify-between px-6 py-4">
+                            <h3 className="text-xl font-bold" style={{ fontFamily: 'Montserrat, sans-serif', color: '#1C1917' }}>
+                              {restaurant.name}
+                            </h3>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); onToggleInfo(); }}
+                              className="rounded-full p-2 hover:bg-gray-100 transition-colors"
+                            >
+                              <X className="h-5 w-5" style={{ color: '#6b7280' }} />
+                            </button>
+                          </div>
+
+                          {/* Tab Navigation */}
+                          <div className="flex gap-1 px-6">
+                            {(['overview', 'menu', 'details'] as const).map((tab) => (
+                              <button
+                                key={tab}
+                                onClick={() => setActiveTab(tab)}
+                                className={`flex-1 py-3 text-sm font-semibold transition-all ${activeTab === tab
+                                  ? 'border-b-2'
+                                  : 'border-b-2 border-transparent'
+                                  }`}
+                                style={{
+                                  color: activeTab === tab ? '#f97316' : '#9ca3af',
+                                  borderBottomColor: activeTab === tab ? '#f97316' : 'transparent',
+                                  fontFamily: 'Montserrat, sans-serif'
+                                }}
+                              >
+                                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Scrollable Content */}
+                        <div className="overflow-y-auto px-6 py-5" style={{ maxHeight: 'calc(80vh - 180px)' }}>
+                          {/* Overview Tab - AI Insights & Quick Stats */}
+                          {activeTab === 'overview' && (
+                            <div className="space-y-5">
+                              {/* AI Insights - Why You'll Love It */}
+                              <div className="rounded-xl p-4" style={{ backgroundColor: '#fff7ed', border: '1px solid #fed7aa' }}>
+                                <div className="flex items-start gap-2 mb-2">
+                                  <Star className="h-5 w-5 mt-0.5 flex-shrink-0" style={{ color: '#f97316' }} fill="#f97316" />
+                                  <h4 className="text-base font-bold" style={{ fontFamily: 'Montserrat, sans-serif', color: '#c2410c' }}>
+                                    Why You'll Love It
+                                  </h4>
+                                </div>
+                                <div className="space-y-2 pl-7">
+                                  {preferences?.cuisine && restaurant.cuisine.toLowerCase().includes(preferences.cuisine.toLowerCase()) && (
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#f97316' }} />
+                                      <p className="text-sm" style={{ color: '#9a3412' }}>Perfect {preferences.cuisine} spot</p>
+                                    </div>
+                                  )}
+                                  {preferences?.budget && (
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#f97316' }} />
+                                      <p className="text-sm" style={{ color: '#9a3412' }}>Fits your budget ({restaurant.price})</p>
+                                    </div>
+                                  )}
+                                  {restaurant.rating >= 4.5 && (
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#f97316' }} />
+                                      <p className="text-sm" style={{ color: '#9a3412' }}>Highly rated by {restaurant.reviewCount}+ diners</p>
+                                    </div>
+                                  )}
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#f97316' }} />
+                                    <p className="text-sm" style={{ color: '#9a3412' }}>Only {restaurant.distance} away</p>
+                                  </div>
+                                  {restaurant.categories && restaurant.categories.length > 0 && (
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#f97316' }} />
+                                      <p className="text-sm" style={{ color: '#9a3412' }}>
+                                        Known for {typeof restaurant.categories[0] === 'string' ? restaurant.categories[0] : restaurant.categories[0]}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Quick Stats Grid */}
+                              <div className="grid grid-cols-3 gap-3">
+                                <div className="text-center p-3 rounded-xl" style={{ backgroundColor: '#f9fafb' }}>
+                                  <Star className="h-5 w-5 mx-auto mb-1" style={{ color: '#f97316' }} fill="#f97316" />
+                                  <p className="text-xl font-bold" style={{ color: '#1C1917' }}>{restaurant.rating}</p>
+                                  <p className="text-xs" style={{ color: '#6b7280' }}>{restaurant.reviewCount} reviews</p>
+                                </div>
+                                <div className="text-center p-3 rounded-xl" style={{ backgroundColor: '#f9fafb' }}>
+                                  <MapPin className="h-5 w-5 mx-auto mb-1" style={{ color: '#f97316' }} />
+                                  <p className="text-xl font-bold" style={{ color: '#1C1917' }}>{restaurant.distance}</p>
+                                  <p className="text-xs" style={{ color: '#6b7280' }}>Distance</p>
+                                </div>
+                                <div className="text-center p-3 rounded-xl" style={{ backgroundColor: '#f9fafb' }}>
+                                  <p className="text-xl font-bold mb-1" style={{ color: '#1C1917' }}>{restaurant.price}</p>
+                                  <p className="text-xs" style={{ color: '#6b7280' }}>Price range</p>
+                                </div>
+                              </div>
+
+                              {/* Cuisine Tags */}
+                              {restaurant.categories && restaurant.categories.length > 0 && (
+                                <div>
+                                  <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: '#9ca3af' }}>Cuisine Type</p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {restaurant.categories.slice(0, 4).map((cat, idx) => (
+                                      <span key={idx} className="rounded-full px-3 py-1.5 text-sm font-medium" style={{ backgroundColor: '#f3f4f6', color: '#374151' }}>
+                                        {typeof cat === 'string' ? cat : cat}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Menu Tab - Show Actual Menu Data */}
+                          {activeTab === 'menu' && (
+                            <div className="space-y-4">
+                              {restaurant.menuData && (restaurant.menuData as any).aiResponse ? (
+                                <>
+                                  <div className="flex items-center gap-2 mb-3">
+                                    <ChefHat className="h-5 w-5" style={{ color: '#f97316' }} />
+                                    <h4 className="text-base font-bold" style={{ fontFamily: 'Montserrat, sans-serif', color: '#1C1917' }}>
+                                      Popular Dishes
+                                    </h4>
+                                  </div>
+                                  <div className="rounded-lg p-4" style={{ backgroundColor: '#f9fafb' }}>
+                                    <p className="text-sm leading-relaxed whitespace-pre-line" style={{ color: '#4b5563' }}>
+                                      {(restaurant.menuData as any).aiResponse}
+                                    </p>
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="text-center py-8">
+                                  <motion.button
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    onClick={(e) => { e.stopPropagation(); onFlip(); onToggleInfo(); }}
+                                    className="mx-auto flex flex-col items-center gap-3 rounded-xl p-6 transition-all"
+                                    style={{ backgroundColor: '#fff7ed', border: '2px dashed #fed7aa' }}
+                                  >
+                                    <ChefHat className="h-12 w-12" style={{ color: '#f97316' }} />
+                                    <div>
+                                      <p className="text-sm font-semibold mb-1" style={{ color: '#c2410c' }}>Flip Card to View Menu</p>
+                                      <p className="text-xs" style={{ color: '#9a3412' }}>Tap to see popular dishes & AI recommendations</p>
+                                    </div>
+                                  </motion.button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Details Tab - Practical Information */}
+                          {activeTab === 'details' && (
+                            <div className="space-y-5">
+                              {/* Location & Directions */}
+                              <div>
+                                <div className="flex items-center gap-2 mb-3">
+                                  <MapPin className="h-5 w-5" style={{ color: '#f97316' }} />
+                                  <h4 className="text-base font-bold" style={{ fontFamily: 'Montserrat, sans-serif', color: '#1C1917' }}>
+                                    Location
+                                  </h4>
+                                </div>
+                                <div className="rounded-lg p-4" style={{ backgroundColor: '#f9fafb' }}>
+                                  <p className="text-sm leading-relaxed mb-2" style={{ color: '#374151' }}>
+                                    {restaurant.address || 'Address not available'}
+                                  </p>
+                                  {restaurant.city && (
+                                    <p className="text-sm" style={{ color: '#6b7280' }}>{restaurant.city}</p>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Contact */}
+                              {restaurant.phone && (
+                                <div>
+                                  <div className="flex items-center gap-2 mb-3">
+                                    <Phone className="h-5 w-5" style={{ color: '#f97316' }} />
+                                    <h4 className="text-base font-bold" style={{ fontFamily: 'Montserrat, sans-serif', color: '#1C1917' }}>
+                                      Contact
+                                    </h4>
+                                  </div>
+                                  <div className="rounded-lg p-4" style={{ backgroundColor: '#f9fafb' }}>
+                                    <a
+                                      href={`tel:${restaurant.phone}`}
+                                      className="text-sm font-medium flex items-center gap-2"
+                                      style={{ color: '#f97316' }}
+                                    >
+                                      <Phone className="h-4 w-4" />
+                                      {restaurant.phone}
+                                    </a>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Additional Info */}
+                              <div>
+                                <div className="flex items-center gap-2 mb-3">
+                                  <Info className="h-5 w-5" style={{ color: '#f97316' }} />
+                                  <h4 className="text-base font-bold" style={{ fontFamily: 'Montserrat, sans-serif', color: '#1C1917' }}>
+                                    Good to Know
+                                  </h4>
+                                </div>
+                                <div className="space-y-2">
+                                  <div className="flex items-start gap-3 rounded-lg p-3" style={{ backgroundColor: '#f9fafb' }}>
+                                    <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" style={{ color: '#6b7280' }} />
+                                    <div>
+                                      <p className="text-xs font-semibold mb-0.5" style={{ color: '#9ca3af' }}>DISTANCE</p>
+                                      <p className="text-sm" style={{ color: '#374151' }}>{restaurant.distance} from your location</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-start gap-3 rounded-lg p-3" style={{ backgroundColor: '#f9fafb' }}>
+                                    <Star className="h-4 w-4 mt-0.5 flex-shrink-0" style={{ color: '#6b7280' }} />
+                                    <div>
+                                      <p className="text-xs font-semibold mb-0.5" style={{ color: '#9ca3af' }}>CUISINE</p>
+                                      <p className="text-sm" style={{ color: '#374151' }}>{restaurant.cuisine}</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
                 {/* Rating & Price Row */}
                 <div className="flex items-center gap-2 mb-2 flex-shrink-0">
                   <div className="flex items-center gap-1.5 rounded-full px-3 py-1.5" style={{ backgroundColor: '#f97316' }}>
@@ -1281,13 +1612,70 @@ function SwipeCard({ restaurant, onSwipe, direction, showInfo, isFlipped, onFlip
                   <div className="space-y-4 w-full">
                     {/* If we have an AI response, display it nicely */}
                     {(restaurant.menuData as any).aiResponse ? (
-                      <div className="rounded-lg p-4" style={{ backgroundColor: '#f9fafb' }}>
-                        <h3 className="text-sm font-semibold uppercase tracking-wider mb-3" style={{ color: '#f97316' }}>
-                          Popular Items & Recommendations
-                        </h3>
-                        <p className="text-sm leading-relaxed whitespace-pre-line" style={{ color: '#4b5563' }}>
-                          {(restaurant.menuData as any).aiResponse}
-                        </p>
+                      <div className="space-y-3 w-full">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Star className="h-4 w-4" style={{ color: '#f97316' }} fill="#f97316" />
+                          <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: '#f97316' }}>
+                            Popular Items & Recommendations
+                          </h3>
+                        </div>
+
+                        {(() => {
+                          const aiText = (restaurant.menuData as any).aiResponse;
+                          // Extract dish names (look for patterns like "dish name (description)" or items in lists)
+                          const dishPattern = /(?:the\s+)?([A-Z][a-zA-Z\s&'-]+(?:\([^)]+\))?)/g;
+                          const sentences = aiText.split(/[.!]\s+/);
+
+                          return (
+                            <div className="space-y-3">
+                              {/* First sentence as intro */}
+                              {sentences[0] && (
+                                <div className="rounded-lg p-3" style={{ backgroundColor: '#fff7ed', border: '1px solid #fed7aa' }}>
+                                  <p className="text-xs leading-relaxed" style={{ color: '#9a3412' }}>
+                                    {sentences[0]}.
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* Extract and display dishes from text */}
+                              {(() => {
+                                // Simple extraction: look for items mentioned after "include" or "like"
+                                const includeMatch = aiText.match(/(?:include|like|mentioned|such as)[:\s]+([^.!]+)/i);
+                                if (includeMatch) {
+                                  const items = includeMatch[1].split(/,\s*(?:and\s+)?/);
+                                  return (
+                                    <div className="space-y-2">
+                                      {items.filter((item: string) => item.trim().length > 3).slice(0, 5).map((item: string, idx: number) => (
+                                        <div key={idx} className="flex items-start gap-2 rounded-lg p-2.5" style={{ backgroundColor: '#f9fafb' }}>
+                                          <ChefHat className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" style={{ color: '#f97316' }} />
+                                          <p className="text-sm font-medium" style={{ color: '#374151' }}>
+                                            {item.trim()}
+                                          </p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  );
+                                }
+                                // Fallback: show rest of text
+                                return sentences.slice(1).map((sentence: string, idx: number) => (
+                                  <p key={idx} className="text-xs leading-relaxed" style={{ color: '#6b7280' }}>
+                                    {sentence}.
+                                  </p>
+                                ));
+                              })()}
+
+                              {/* Price info if mentioned */}
+                              {aiText.match(/\$\d+/) && (
+                                <div className="flex items-start gap-2 mt-3 p-2.5 rounded-lg" style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0' }}>
+                                  <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" style={{ color: '#16a34a' }} />
+                                  <p className="text-xs leading-relaxed" style={{ color: '#166534' }}>
+                                    {aiText.match(/([^.!]*\$\d+[^.!]*)/)?.[0] || 'Check menu for pricing'}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     ) : (
                       /* Fallback to structured categories (for agentic scraping) */

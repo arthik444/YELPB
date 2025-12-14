@@ -122,7 +122,7 @@ export function WinnerScreen({ onNavigate, restaurant, preferences, isOwner = fa
   const restaurantImage = restaurant?.image || 'https://images.unsplash.com/photo-1757358957218-67e771ec07bb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxnb3VybWV0JTIwZm9vZCUyMHBob3RvZ3JhcGh5fGVufDF8fHx8MTc2NTE0MDQ0Mnww&ixlib=rb-4.1.0&q=80&w=1080';
 
   return (
-    <div className="min-h-screen bg-black">
+    <div className="min-h-screen bg-white">
       {/* Confetti effect */}
       <AnimatePresence>
         {showConfetti && (
@@ -134,7 +134,7 @@ export function WinnerScreen({ onNavigate, restaurant, preferences, isOwner = fa
                 style={{
                   left: `${Math.random() * 100}%`,
                   top: -20,
-                  background: ['#F97316', '#fb923c', '#FBBF24', '#F59E0B', '#DC2626'][Math.floor(Math.random() * 5)],
+                  background: ['#f97316', '#fb923c', '#fbbf24', '#f59e0b', '#f87171'][Math.floor(Math.random() * 5)],
                 }}
                 initial={{ y: -20, opacity: 1, rotate: 0 }}
                 animate={{
@@ -165,14 +165,14 @@ export function WinnerScreen({ onNavigate, restaurant, preferences, isOwner = fa
             backgroundImage: `url('${restaurantImage}')`
           }}
         >
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/50 to-black" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-white" />
 
           {/* Trophy icon */}
           <motion.div
             initial={{ scale: 0, rotate: -180 }}
             animate={{ scale: 1, rotate: 0 }}
             transition={{ delay: 0.5, type: 'spring', bounce: 0.6 }}
-            className="absolute left-1/2 top-12 -translate-x-1/2"
+            className="absolute left-1/2 top-8 -translate-x-1/2"
           >
             <div className="relative">
               <motion.div
@@ -204,30 +204,30 @@ export function WinnerScreen({ onNavigate, restaurant, preferences, isOwner = fa
                 transition={{ delay: 0.5, type: 'spring', bounce: 0.3 }}
                 className="mb-4 inline-block"
               >
-                <div className="glassmorphism-premium rounded-full px-5 py-2 backdrop-blur-xl">
+                <div className="rounded-full px-5 py-2 bg-white/95 backdrop-blur-xl border border-orange-200 shadow-lg">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-[#F97316]" />
-                    <span className="text-sm tracking-widest text-[#F97316]" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700 }}>
+                    <Sparkles className="h-4 w-4 text-[#f97316]" />
+                    <span className="text-sm tracking-widest text-[#f97316]" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700 }}>
                       TONIGHT&apos;S SPOT
                     </span>
                   </div>
                 </div>
               </motion.div>
               <h1
-                className="mb-2 bg-gradient-to-r from-white to-orange-100 bg-clip-text text-6xl text-transparent drop-shadow-2xl"
+                className="mb-2 text-6xl text-white drop-shadow-2xl"
                 style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 800 }}
               >
                 {restaurantName}
               </h1>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1">
-                  <Star className="h-5 w-5 fill-[#F97316] text-[#F97316]" />
-                  <span className="text-lg text-white">{restaurantRating}</span>
+                  <Star className="h-6 w-6 fill-[#f97316] text-[#f97316] drop-shadow-lg" />
+                  <span className="text-lg font-bold text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">{restaurantRating}</span>
                 </div>
-                <span className="text-gray-400">•</span>
-                <span className="text-lg text-gray-300">{restaurantCuisine}</span>
-                <span className="text-gray-400">•</span>
-                <span className="text-lg text-[#F97316]">{restaurantPrice}</span>
+                <span className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">•</span>
+                <span className="text-lg font-semibold text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">{restaurantCuisine}</span>
+                <span className="text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">•</span>
+                <span className="text-lg font-bold text-[#f97316] drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">{restaurantPrice}</span>
               </div>
             </motion.div>
           </div>
@@ -235,12 +235,12 @@ export function WinnerScreen({ onNavigate, restaurant, preferences, isOwner = fa
       </div>
 
       {/* Content Section */}
-      <div className="relative -mt-6 px-6">
+      <div className="relative pt-6 px-6">
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.3 }}
-          className="space-y-4 pb-80"
+          className="space-y-6 pb-80"
 
         >
           {/* AI Tie-Breaker Banner */}
@@ -249,17 +249,17 @@ export function WinnerScreen({ onNavigate, restaurant, preferences, isOwner = fa
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.6 }}
-              className="rounded-2xl border border-orange-500/30 bg-gradient-to-r from-orange-500/20 to-purple-500/20 p-4 backdrop-blur-xl"
+              className="rounded-2xl border border-orange-200 bg-gradient-to-r from-orange-50 to-purple-50 p-5 shadow-md"
             >
               <div className="flex items-start gap-4">
                 <div className="mt-1 rounded-full bg-gradient-to-r from-orange-500 to-purple-500 p-2 text-white">
                   <Trophy className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="mb-1 text-sm font-bold text-white uppercase tracking-wider">
+                  <h3 className="mb-1 text-sm font-bold text-gray-900 uppercase tracking-wider" style={{ color: '#111827' }}>
                     AI Judge's Decision
                   </h3>
-                  <p className="text-sm font-medium text-gray-200 leading-relaxed">
+                  <p className="text-sm font-medium text-gray-700 leading-relaxed" style={{ color: '#374151' }}>
                     "{restaurant.winningReason}"
                   </p>
                 </div>
@@ -270,14 +270,14 @@ export function WinnerScreen({ onNavigate, restaurant, preferences, isOwner = fa
           {/* Info Cards */}
 
           <InfoCard
-            icon={<MapPin className="h-6 w-6 text-[#F97316]" />}
+            icon={<MapPin className="h-6 w-6 text-[#f97316]" style={{ color: '#f97316', stroke: '#f97316' }} />}
             label="Address"
             value={`${restaurant?.address || restaurant?.location?.address1 || 'Address not available'}${restaurant?.city || restaurant?.location?.city ? ', ' + (restaurant?.city || restaurant?.location?.city) : ''}`}
             delay={0.7}
           />
 
           <InfoCard
-            icon={<Clock className="h-6 w-6 text-[#F97316]" />}
+            icon={<Clock className="h-6 w-6 text-[#f97316]" style={{ color: '#f97316', stroke: '#f97316' }} />}
             label="Reservation"
             value={`${bookingDate} at ${bookingTime}`}
             delay={0.8}
@@ -285,7 +285,7 @@ export function WinnerScreen({ onNavigate, restaurant, preferences, isOwner = fa
           />
 
           <InfoCard
-            icon={<Phone className="h-6 w-6 text-[#F97316]" />}
+            icon={<Phone className="h-6 w-6 text-[#f97316]" style={{ color: '#f97316', stroke: '#f97316' }} />}
             label="Contact"
             value={restaurant?.phone || 'Phone not available'}
             delay={0.9}
@@ -296,13 +296,12 @@ export function WinnerScreen({ onNavigate, restaurant, preferences, isOwner = fa
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 1 }}
-            className="glassmorphism-premium rounded-2xl p-6 backdrop-blur-xl"
+            className="rounded-2xl border border-gray-200 bg-white p-6 shadow-md"
           >
-            <h3 className="mb-4 flex items-center gap-2 text-white" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700 }}>
-              <Sparkles className="h-5 w-5 text-[#F97316]" />
+            <h3 className="mb-4 text-lg font-bold text-gray-900" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700, color: '#111827' }}>
               Why We Picked This
             </h3>
-            <div className="space-y-3">
+            <div className="space-y-4">
               {[
                 'Perfect match for your budget & cuisine preference',
                 'Trending in your area this week',
@@ -316,10 +315,10 @@ export function WinnerScreen({ onNavigate, restaurant, preferences, isOwner = fa
                   transition={{ delay: 1.1 + index * 0.1 }}
                   className="flex items-start gap-3"
                 >
-                  <div className="mt-0.5 rounded-full bg-green-500/20 p-1">
-                    <Check className="h-3 w-3 text-green-400" />
+                  <div className="mt-0.5 rounded-full bg-green-100 p-1">
+                    <Check className="h-3 w-3 text-green-600" />
                   </div>
-                  <span className="text-sm text-gray-300">{feature}</span>
+                  <span className="text-sm text-gray-700" style={{ color: '#374151' }}>{feature}</span>
                 </motion.div>
               ))}
             </div>
@@ -332,25 +331,25 @@ export function WinnerScreen({ onNavigate, restaurant, preferences, isOwner = fa
         initial={{ y: 100, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.8 }}
-        className="fixed inset-x-0 bottom-0 bg-gradient-to-t from-black via-black to-transparent p-6 pt-12"
+        className="fixed inset-x-0 bottom-0 bg-white p-6 pt-12 border-t border-gray-100 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]"
       >
         <div className="mb-4 flex gap-3">
           <motion.button
             whileHover={{ y: -2 }}
             whileTap={{ scale: 0.95 }}
-            className="flex items-center justify-center gap-2 rounded-2xl border-2 border-white/20 bg-white/5 px-6 py-4 backdrop-blur-md transition-all hover:border-white/30 hover:bg-white/10"
+            className="flex items-center justify-center gap-2 rounded-2xl border-2 border-gray-300 bg-white px-6 py-4 transition-all hover:border-gray-400 hover:bg-gray-50 shadow-sm"
           >
-            <Share2 className="h-5 w-5 text-white" />
+            <Share2 className="h-5 w-5 text-gray-700" style={{ color: '#374151', stroke: '#374151' }} />
           </motion.button>
 
           <motion.button
             whileHover={{ y: -2 }}
             whileTap={{ scale: 0.95 }}
             onClick={handleGetDirections}
-            className="flex flex-1 items-center justify-center gap-2 rounded-2xl border-2 border-white/20 bg-white/5 px-6 py-4 backdrop-blur-md transition-all hover:border-white/30 hover:bg-white/10"
+            className="flex flex-1 items-center justify-center gap-2 rounded-2xl border-2 border-gray-300 bg-white px-6 py-4 transition-all hover:border-gray-400 hover:bg-gray-50 shadow-sm"
           >
-            <Navigation className="h-5 w-5 text-white" />
-            <span className="text-white" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700 }}>
+            <Navigation className="h-5 w-5 text-gray-700" style={{ color: '#374151', stroke: '#374151' }} />
+            <span className="text-gray-900" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700, color: '#111827' }}>
               Directions
             </span>
           </motion.button>
@@ -360,11 +359,11 @@ export function WinnerScreen({ onNavigate, restaurant, preferences, isOwner = fa
           whileHover={{ scale: 1.02, y: -2 }}
           whileTap={{ scale: 0.98 }}
           onClick={handleAddToCalendar}
-          className="mb-3 w-full rounded-2xl border-2 border-orange-500/30 bg-orange-500/10 py-4 backdrop-blur-md transition-all hover:border-orange-500/50 hover:bg-orange-500/20"
+          className="mb-3 w-full rounded-2xl border-2 border-orange-200 bg-orange-50 py-4 transition-all hover:border-orange-300 hover:bg-orange-100 shadow-sm"
         >
           <div className="flex items-center justify-center gap-2">
-            <Calendar className="h-5 w-5 text-[#F97316]" />
-            <span className="text-[#F97316]" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700 }}>
+            <Calendar className="h-5 w-5 text-[#f97316]" style={{ color: '#f97316', stroke: '#f97316' }} />
+            <span className="text-[#f97316]" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700, color: '#f97316' }}>
               Add to Calendar
             </span>
           </div>
@@ -402,7 +401,8 @@ export function WinnerScreen({ onNavigate, restaurant, preferences, isOwner = fa
 
         <button
           onClick={onNavigate}
-          className="mt-4 w-full py-3 text-sm text-gray-400 transition-colors hover:text-white"
+          className="mt-4 w-full py-3 text-sm text-gray-500 transition-colors hover:text-gray-700"
+          style={{ color: '#6b7280' }}
         >
           Start New Session
         </button>
@@ -423,7 +423,7 @@ export function WinnerScreen({ onNavigate, restaurant, preferences, isOwner = fa
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md rounded-3xl bg-gradient-to-b from-zinc-900 to-black border border-white/10 p-6"
+              className="w-full max-w-md rounded-3xl bg-white border border-gray-200 p-6 shadow-2xl"
             >
               {bookingSuccess ? (
                 <div className="text-center py-8">
@@ -431,57 +431,57 @@ export function WinnerScreen({ onNavigate, restaurant, preferences, isOwner = fa
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
                     transition={{ type: 'spring', bounce: 0.5 }}
-                    className="mx-auto mb-4 h-20 w-20 rounded-full bg-green-500/20 flex items-center justify-center"
+                    className="mx-auto mb-4 h-20 w-20 rounded-full bg-green-100 flex items-center justify-center"
                   >
-                    <Check className="h-10 w-10 text-green-400" />
+                    <Check className="h-10 w-10 text-green-600" />
                   </motion.div>
-                  <h3 className="text-2xl text-white mb-2" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700 }}>
+                  <h3 className="text-2xl text-gray-900 mb-2" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700, color: '#111827' }}>
                     Booking Sent!
                   </h3>
-                  <p className="text-gray-400">{bookingMessage}</p>
+                  <p className="text-gray-600" style={{ color: '#4b5563' }}>{bookingMessage}</p>
                 </div>
               ) : (
                 <>
                   <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-2xl text-white" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700 }}>
+                    <h3 className="text-2xl text-gray-900" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700, color: '#111827' }}>
                       Book a Table
                     </h3>
                     <button
                       onClick={() => setShowBookingModal(false)}
-                      className="rounded-full p-2 hover:bg-white/10 transition-colors"
+                      className="rounded-full p-2 hover:bg-gray-100 transition-colors"
                     >
-                      <X className="h-5 w-5 text-gray-400" />
+                      <X className="h-5 w-5 text-gray-500" />
                     </button>
                   </div>
 
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm text-gray-400 mb-2">Party Size</label>
-                      <div className="rounded-xl bg-white/5 border border-white/10 px-4 py-3">
-                        <span className="text-white text-lg" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700 }}>
+                      <label className="block text-sm text-gray-600 mb-2" style={{ color: '#4b5563' }}>Party Size</label>
+                      <div className="rounded-xl bg-gray-50 border border-gray-200 px-4 py-3">
+                        <span className="text-gray-900 text-lg" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700, color: '#111827' }}>
                           {partySize} {partySize === 1 ? 'person' : 'people'}
                         </span>
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-sm text-gray-400 mb-2">Date</label>
+                      <label className="block text-sm text-gray-600 mb-2" style={{ color: '#4b5563' }}>Date</label>
                       <input
                         type="date"
                         value={bookingDate}
                         onChange={(e) => setBookingDate(e.target.value)}
                         min={new Date().toISOString().split('T')[0]}
-                        className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-white focus:border-[#F97316] focus:outline-none"
+                        className="w-full rounded-xl bg-gray-50 border border-gray-200 px-4 py-3 text-gray-900 focus:border-[#f97316] focus:outline-none focus:ring-2 focus:ring-orange-200"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm text-gray-400 mb-2">Time</label>
+                      <label className="block text-sm text-gray-600 mb-2" style={{ color: '#4b5563' }}>Time</label>
                       <input
                         type="time"
                         value={bookingTime}
                         onChange={(e) => setBookingTime(e.target.value)}
-                        className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-white focus:border-[#F97316] focus:outline-none"
+                        className="w-full rounded-xl bg-gray-50 border border-gray-200 px-4 py-3 text-gray-900 focus:border-[#f97316] focus:outline-none focus:ring-2 focus:ring-orange-200"
                       />
                     </div>
 
@@ -490,7 +490,7 @@ export function WinnerScreen({ onNavigate, restaurant, preferences, isOwner = fa
                       whileTap={{ scale: 0.98 }}
                       onClick={handleBookReservation}
                       disabled={isBooking}
-                      className="w-full rounded-xl bg-gradient-to-r from-[#F97316] to-[#fb923c] py-4 text-white disabled:opacity-50"
+                      className="w-full rounded-xl bg-gradient-to-r from-[#f97316] to-[#fb923c] py-4 text-white disabled:opacity-50 shadow-lg"
                       style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700 }}
                     >
                       {isBooking ? 'Booking...' : 'Confirm Booking'}
@@ -518,22 +518,22 @@ function InfoCard({ icon, label, value, delay, badge }: {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay }}
-      className="glassmorphism-premium rounded-2xl p-5 backdrop-blur-xl transition-all hover:bg-white/10"
+      className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition-all hover:shadow-md hover:border-gray-300"
     >
       <div className="flex items-start gap-4">
-        <div className="rounded-full bg-[#F97316]/20 p-3">
+        <div className="rounded-full bg-orange-100 p-3">
           {icon}
         </div>
         <div className="flex-1">
           <div className="flex items-center justify-between">
-            <p className="text-xs text-gray-400">{label}</p>
+            <p className="text-xs text-gray-500" style={{ color: '#6b7280' }}>{label}</p>
             {badge && (
-              <span className="rounded-full bg-green-500/20 px-2.5 py-0.5 text-xs text-green-400">
+              <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs text-green-700 font-medium">
                 {badge}
               </span>
             )}
           </div>
-          <p className="mt-1 text-white">{value}</p>
+          <p className="mt-1 text-gray-900 font-medium" style={{ color: '#1C1917' }}>{value}</p>
         </div>
       </div>
     </motion.div>
