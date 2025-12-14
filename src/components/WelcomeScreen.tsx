@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UtensilsCrossed } from 'lucide-react';
+import { sessionService } from '../services/sessionService';
 
 interface WelcomeScreenProps {
   onNavigate: (sessionCode: string) => void;
@@ -13,20 +14,41 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
   const [isHost, setIsHost] = useState(false);
   const [userName, setUserName] = useState('');
   const [joinCode, setJoinCode] = useState('');
+  const [error, setError] = useState('');
+  const [isValidating, setIsValidating] = useState(false);
 
   const handleHostSession = () => {
     setIsHost(true);
+    setError('');
     setView('NAME_INPUT');
   };
 
   const handleJoinClick = () => {
     setIsHost(false);
+    setError('');
     setView('JOIN_CODE');
   };
 
-  const handleJoinSession = () => {
+  const handleJoinSession = async () => {
     if (joinCode.trim().length >= 4) {
-      setView('NAME_INPUT');
+      setIsValidating(true);
+      setError('');
+
+      try {
+        // Validate that the room exists before proceeding
+        const exists = await sessionService.checkSessionExists(joinCode.trim().toUpperCase());
+
+        if (exists) {
+          setView('NAME_INPUT');
+        } else {
+          setError('Room not found. Please check the code and try again.');
+        }
+      } catch (err) {
+        console.error('Error validating room:', err);
+        setError('Failed to validate room. Please try again.');
+      } finally {
+        setIsValidating(false);
+      }
     }
   };
 
@@ -35,9 +57,11 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
       if (isHost) {
         const code = Math.random().toString(36).substring(2, 8).toUpperCase();
         localStorage.setItem('userName', userName.trim());
+        localStorage.setItem('isHost', 'true');
         onNavigate(code);
       } else {
         localStorage.setItem('userName', userName.trim());
+        localStorage.setItem('isHost', 'false');
         onNavigate(joinCode.trim().toUpperCase());
       }
     }
@@ -54,6 +78,7 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
 
   const handleCancel = () => {
     setJoinCode('');
+    setError('');
     setView('LANDING');
   };
 
@@ -148,7 +173,10 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
                 <input
                   type="text"
                   value={joinCode}
-                  onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                  onChange={(e) => {
+                    setJoinCode(e.target.value.toUpperCase());
+                    setError(''); // Clear error when user types
+                  }}
                   onKeyPress={(e) => e.key === 'Enter' && handleJoinSession()}
                   placeholder="ABCD"
                   maxLength={6}
@@ -156,13 +184,25 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
                   style={{
                     backgroundColor: '#f9fafb',
                     color: '#111827',
-                    borderColor: '#e5e7eb',
+                    borderColor: error ? '#ef4444' : '#e5e7eb',
                     fontFamily: 'monospace'
                   }}
-                  onFocus={(e) => e.currentTarget.style.borderColor = '#f97316'}
-                  onBlur={(e) => e.currentTarget.style.borderColor = '#e5e7eb'}
+                  onFocus={(e) => e.currentTarget.style.borderColor = error ? '#ef4444' : '#f97316'}
+                  onBlur={(e) => e.currentTarget.style.borderColor = error ? '#ef4444' : '#e5e7eb'}
                   autoFocus
                 />
+
+                {/* Error Message */}
+                {error && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-3 text-sm font-medium"
+                    style={{ color: '#ef4444' }}
+                  >
+                    {error}
+                  </motion.p>
+                )}
               </motion.div>
             )}
 
@@ -259,7 +299,8 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
               >
                 <button
                   onClick={handleCancel}
-                  className="flex-1 font-semibold py-4 rounded-xl transition-colors"
+                  disabled={isValidating}
+                  className="flex-1 font-semibold py-4 rounded-xl transition-colors disabled:opacity-50"
                   style={{ backgroundColor: '#f3f4f6', color: '#111827' }}
                   onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e5e7eb'}
                   onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
@@ -268,20 +309,20 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
                 </button>
                 <button
                   onClick={handleJoinSession}
-                  disabled={joinCode.length < 4}
+                  disabled={joinCode.length < 4 || isValidating}
                   className="flex-1 font-semibold py-4 rounded-xl transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{
-                    backgroundColor: joinCode.length < 4 ? '#fdba74' : '#f97316',
+                    backgroundColor: joinCode.length < 4 || isValidating ? '#fdba74' : '#f97316',
                     color: '#ffffff'
                   }}
                   onMouseEnter={(e) => {
-                    if (joinCode.length >= 4) e.currentTarget.style.backgroundColor = '#ea580c';
+                    if (joinCode.length >= 4 && !isValidating) e.currentTarget.style.backgroundColor = '#ea580c';
                   }}
                   onMouseLeave={(e) => {
-                    if (joinCode.length >= 4) e.currentTarget.style.backgroundColor = '#f97316';
+                    if (joinCode.length >= 4 && !isValidating) e.currentTarget.style.backgroundColor = '#f97316';
                   }}
                 >
-                  Continue
+                  {isValidating ? 'Checking...' : 'Continue'}
                 </button>
               </motion.div>
             )}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform, PanInfo } from 'motion/react';
-import { X, Heart, Star, MapPin, Clock, TrendingUp, Award, Info, Loader2, Phone, ExternalLink, ChefHat, RotateCcw } from 'lucide-react';
+import { X, Heart, Star, MapPin, Clock, TrendingUp, Award, Info, Loader2, Phone, ExternalLink, ChefHat, RotateCcw, DollarSign } from 'lucide-react';
 import { useYelpSearch } from '../hooks/useYelpSearch';
 import { useGeolocation } from '../hooks/useGeolocation';
 import { Business, apiService } from '../services/api';
@@ -473,8 +473,8 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
             <p className="mt-1.5 text-xs text-gray-500" style={{ color: '#6b7280' }}>{Math.min(loadingProgress, 100)}%</p>
           </div>
 
-          {/* Preferences summary */}
-          {preferences && (preferences.cuisine || preferences.budget || preferences.vibe) && (
+          {/* Preferences summary - always show */}
+          {preferences && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -483,24 +483,34 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
             >
               <p className="mb-2 text-[10px] text-gray-500 uppercase tracking-wider">Looking for</p>
               <div className="flex flex-wrap items-center justify-center gap-1.5">
-                {preferences.cuisine && (
-                  <span className="rounded-full bg-orange-100 px-2.5 py-0.5 text-xs text-orange-700 font-medium">
-                    {preferences.cuisine}
+                {/* Show cuisine if not empty */}
+                {preferences.cuisine && preferences.cuisine.trim() && (
+                  <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ backgroundColor: '#fed7aa', color: '#c2410c' }}>
+                    🍝 {preferences.cuisine}
                   </span>
                 )}
+                {/* Show budget if it exists */}
                 {preferences.budget && (
-                  <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs text-green-700 font-medium">
-                    {preferences.budget}
+                  <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ backgroundColor: '#bbf7d0', color: '#15803d' }}>
+                    💰 {preferences.budget}
                   </span>
                 )}
-                {preferences.vibe && (
-                  <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-xs text-purple-700 font-medium">
-                    {preferences.vibe}
+                {/* Show vibe if not empty */}
+                {preferences.vibe && preferences.vibe.trim() && (
+                  <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ backgroundColor: '#e9d5ff', color: '#7c3aed' }}>
+                    ✨ {preferences.vibe}
                   </span>
                 )}
+                {/* Show dietary if not 'None' */}
                 {preferences.dietary && preferences.dietary !== 'None' && (
-                  <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs text-blue-700 font-medium">
-                    {preferences.dietary}
+                  <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ backgroundColor: '#bfdbfe', color: '#1d4ed8' }}>
+                    🥗 {preferences.dietary}
+                  </span>
+                )}
+                {/* Show distance */}
+                {preferences.distance && (
+                  <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ backgroundColor: '#99f6e4', color: '#0f766e' }}>
+                    📍 {preferences.distance}
                   </span>
                 )}
               </div>
@@ -998,22 +1008,6 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
 
       {/* Progress indicator */}
       <div className="absolute left-0 right-0 top-6 z-30 px-6">
-        {/* Undo Button - top left */}
-        {swipeHistory.length > 0 && currentIndex > 0 && (
-          <motion.button
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.8 }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={handleUndo}
-            className="absolute left-6 flex items-center gap-2 rounded-full px-4 py-2.5 shadow-lg transition-all"
-            style={{ backgroundColor: '#ffffff', border: '2px solid #d1d5db' }}
-          >
-            <RotateCcw className="h-4 w-4" style={{ color: '#6b7280' }} />
-            <span className="text-sm font-semibold" style={{ color: '#374151' }}>Undo</span>
-          </motion.button>
-        )}
 
         <div className="flex justify-between gap-1.5">
           {restaurants.map((_, index) => (
@@ -1080,7 +1074,32 @@ export function SwipeScreen({ onNavigate, preferences, sessionCode, isOwner }: S
 
       {/* Action Buttons - ACTUAL BOTTOM with proper positioning */}
       <div className="fixed inset-x-0 bottom-0 z-50" style={{ paddingBottom: '32px', paddingTop: '16px', background: 'linear-gradient(to top, rgba(249, 250, 251, 1) 70%, rgba(249, 250, 251, 0) 100%)' }}>
-        <div className="flex items-center justify-center gap-5">
+        <div className="flex items-center justify-center gap-4">
+          {/* Undo Button - smaller, left side */}
+          <AnimatePresence>
+            {swipeHistory.length > 0 && currentIndex > 0 && (
+              <motion.button
+                key="undo"
+                initial={{ opacity: 0, scale: 0.8, x: -10 }}
+                animate={{ opacity: 1, scale: 1, x: 0 }}
+                exit={{ opacity: 0, scale: 0.8, x: -10 }}
+                whileHover={{ scale: 1.08 }}
+                whileTap={{ scale: 0.92 }}
+                onClick={handleUndo}
+                className="flex items-center justify-center rounded-full transition-all"
+                style={{
+                  backgroundColor: '#ffffff',
+                  width: '52px',
+                  height: '52px',
+                  border: '2px solid #d1d5db',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+                }}
+              >
+                <RotateCcw className="h-5 w-5" style={{ color: '#6b7280' }} strokeWidth={2.5} />
+              </motion.button>
+            )}
+          </AnimatePresence>
+
           {/* Dislike Button */}
           <motion.button
             whileHover={{ scale: 1.05 }}
@@ -1372,7 +1391,8 @@ function SwipeCard({ restaurant, onSwipe, direction, showInfo, onToggleInfo, isF
                                   <p className="text-xs" style={{ color: '#6b7280' }}>Distance</p>
                                 </div>
                                 <div className="text-center p-3 rounded-xl" style={{ backgroundColor: '#f9fafb' }}>
-                                  <p className="text-xl font-bold mb-1" style={{ color: '#1C1917' }}>{restaurant.price}</p>
+                                  <DollarSign className="h-5 w-5 mx-auto mb-1" style={{ color: '#f97316' }} />
+                                  <p className="text-xl font-bold" style={{ color: '#1C1917' }}>{restaurant.price}</p>
                                   <p className="text-xs" style={{ color: '#6b7280' }}>Price range</p>
                                 </div>
                               </div>

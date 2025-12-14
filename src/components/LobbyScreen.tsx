@@ -161,7 +161,7 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
     tomorrow.setDate(tomorrow.getDate() + 1);
     setBookingDate(tomorrow.toISOString().split('T')[0]);
 
-    // Join Firebase session
+    // Join Firebase session - use different methods for hosts vs joiners
     const currentUser: SessionUser = {
       id: currentUserId,
       name: userName,
@@ -169,10 +169,22 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
       joinedAt: Date.now()
     };
 
-    console.log('🔥 Joining Firebase session:', sessionCode, 'as', currentUser);
-    sessionService.joinSession(sessionCode, currentUser).catch(err => {
-      console.error('❌ Failed to join session:', err);
-    });
+    // Check if this user is the host (created the room) or a joiner
+    const isHostUser = localStorage.getItem('isHost') === 'true';
+
+    console.log('🔥 Joining Firebase session:', sessionCode, 'as', currentUser, 'isHost:', isHostUser);
+
+    if (isHostUser) {
+      // Hosts create a new session
+      sessionService.createSession(sessionCode, currentUser).catch(err => {
+        console.error('❌ Failed to create session:', err);
+      });
+    } else {
+      // Joiners join existing session
+      sessionService.joinSession(sessionCode, currentUser).catch(err => {
+        console.error('❌ Failed to join session:', err);
+      });
+    }
 
     // Subscribe to users
     const unsubscribeUsers = sessionService.subscribeToUsers(sessionCode, (users) => {
