@@ -333,20 +333,12 @@ export function WinnerScreen({ onNavigate, restaurant, preferences, isOwner = fa
         transition={{ delay: 0.8 }}
         className="fixed inset-x-0 bottom-0 bg-white p-6 pt-12 border-t border-gray-100 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]"
       >
-        <div className="mb-4 flex gap-3">
-          <motion.button
-            whileHover={{ y: -2 }}
-            whileTap={{ scale: 0.95 }}
-            className="flex items-center justify-center gap-2 rounded-2xl border-2 border-gray-300 bg-white px-6 py-4 transition-all hover:border-gray-400 hover:bg-gray-50 shadow-sm"
-          >
-            <Share2 className="h-5 w-5 text-gray-700" style={{ color: '#374151', stroke: '#374151' }} />
-          </motion.button>
-
+        <div className="mb-4">
           <motion.button
             whileHover={{ y: -2 }}
             whileTap={{ scale: 0.95 }}
             onClick={handleGetDirections}
-            className="flex flex-1 items-center justify-center gap-2 rounded-2xl border-2 border-gray-300 bg-white px-6 py-4 transition-all hover:border-gray-400 hover:bg-gray-50 shadow-sm"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-gray-300 bg-white px-6 py-4 transition-all hover:border-gray-400 hover:bg-gray-50 shadow-sm"
           >
             <Navigation className="h-5 w-5 text-gray-700" style={{ color: '#374151', stroke: '#374151' }} />
             <span className="text-gray-900" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 700, color: '#111827' }}>
@@ -471,7 +463,8 @@ export function WinnerScreen({ onNavigate, restaurant, preferences, isOwner = fa
                         value={bookingDate}
                         onChange={(e) => setBookingDate(e.target.value)}
                         min={new Date().toISOString().split('T')[0]}
-                        className="w-full rounded-xl bg-gray-50 border border-gray-200 px-4 py-3 text-gray-900 focus:border-[#f97316] focus:outline-none focus:ring-2 focus:ring-orange-200"
+                        className="w-full rounded-xl bg-gray-50 border border-gray-200 px-4 py-3 focus:border-[#f97316] focus:outline-none focus:ring-2 focus:ring-orange-200"
+                        style={{ color: '#111827' }}
                       />
                     </div>
 
@@ -481,7 +474,8 @@ export function WinnerScreen({ onNavigate, restaurant, preferences, isOwner = fa
                         type="time"
                         value={bookingTime}
                         onChange={(e) => setBookingTime(e.target.value)}
-                        className="w-full rounded-xl bg-gray-50 border border-gray-200 px-4 py-3 text-gray-900 focus:border-[#f97316] focus:outline-none focus:ring-2 focus:ring-orange-200"
+                        className="w-full rounded-xl bg-gray-50 border border-gray-200 px-4 py-3 focus:border-[#f97316] focus:outline-none focus:ring-2 focus:ring-orange-200"
+                        style={{ color: '#111827' }}
                       />
                     </div>
 

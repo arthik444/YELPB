@@ -3,6 +3,99 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Send, Mic, Image as ImageIcon, Camera, X, Loader2, ChevronDown, MessageCircle, Sparkles, MessageSquare } from 'lucide-react';
 import { apiService } from '../services/api';
 import { VoiceMode } from './VoiceMode';
+import React from 'react';
+
+// Simple markdown renderer for chat messages
+const renderMarkdown = (text: string): React.ReactElement => {
+  // Split text into segments and process each
+  const lines = text.split('\n');
+
+  const processInline = (line: string): (string | React.ReactElement)[] => {
+    const parts: (string | React.ReactElement)[] = [];
+    let remaining = line;
+    let keyIndex = 0;
+
+    // Process bold (**text**)
+    while (remaining.includes('**')) {
+      const startIdx = remaining.indexOf('**');
+      const endIdx = remaining.indexOf('**', startIdx + 2);
+
+      if (endIdx === -1) break;
+
+      if (startIdx > 0) {
+        parts.push(remaining.substring(0, startIdx));
+      }
+
+      const boldText = remaining.substring(startIdx + 2, endIdx);
+      parts.push(<strong key={`bold-${keyIndex++}`} className="font-semibold">{boldText}</strong>);
+      remaining = remaining.substring(endIdx + 2);
+    }
+
+    // Process italic (*text* or _text_)
+    while (remaining.includes('*') || remaining.includes('_')) {
+      const italicMatch = remaining.match(/([*_])([^*_]+)\1/);
+      if (!italicMatch) break;
+
+      const matchIdx = remaining.indexOf(italicMatch[0]);
+      if (matchIdx > 0) {
+        parts.push(remaining.substring(0, matchIdx));
+      }
+
+      parts.push(<em key={`italic-${keyIndex++}`} className="italic">{italicMatch[2]}</em>);
+      remaining = remaining.substring(matchIdx + italicMatch[0].length);
+    }
+
+    if (remaining) {
+      parts.push(remaining);
+    }
+
+    return parts.length > 0 ? parts : [line];
+  };
+
+  return (
+    <>
+      {lines.map((line, lineIdx) => {
+        // Handle bullet points
+        if (line.trim().startsWith('- ') || line.trim().startsWith('• ')) {
+          const content = line.trim().substring(2);
+          return (
+            <div key={`line-${lineIdx}`} className="flex items-start gap-2 my-1">
+              <span className="mt-1">•</span>
+              <span>{processInline(content)}</span>
+            </div>
+          );
+        }
+
+        // Handle numbered lists
+        const numberedMatch = line.trim().match(/^(\d+)\.\s+(.+)$/);
+        if (numberedMatch) {
+          return (
+            <div key={`line-${lineIdx}`} className="flex items-start gap-2 my-1">
+              <span className="font-medium">{numberedMatch[1]}.</span>
+              <span>{processInline(numberedMatch[2])}</span>
+            </div>
+          );
+        }
+
+        // Handle headers (##)
+        if (line.trim().startsWith('## ')) {
+          return <p key={`line-${lineIdx}`} className="font-bold text-base mt-2 mb-1">{processInline(line.trim().substring(3))}</p>;
+        }
+        if (line.trim().startsWith('# ')) {
+          return <p key={`line-${lineIdx}`} className="font-bold text-lg mt-2 mb-1">{processInline(line.trim().substring(2))}</p>;
+        }
+
+        // Empty lines create spacing
+        if (line.trim() === '') {
+          return <div key={`line-${lineIdx}`} className="h-2" />;
+        }
+
+        // Regular paragraph
+        return <p key={`line-${lineIdx}`} className="my-0.5">{processInline(line)}</p>;
+      })}
+    </>
+  );
+};
 
 interface Message {
   id: number;
@@ -363,7 +456,7 @@ export function MultimodalChat({
           setMessages(prev => [...prev, {
             id: getNextMsgId(),
             sender: 'ai',
-            text: result.error || 'Sorry, I had trouble understanding that. Please try again.'
+            text: 'Sorry, I had trouble understanding that. Could you try again or type your message?'
           }]);
         }
       };
@@ -374,7 +467,7 @@ export function MultimodalChat({
       addMessageAndSave({
         id: getNextMsgId(),
         sender: 'ai',
-        text: 'Sorry, I had trouble processing your voice message. Please try again or type your message.'
+        text: 'I had some trouble processing that. Would you mind trying again or typing your message instead?'
       });
     }
   };
@@ -450,7 +543,7 @@ export function MultimodalChat({
         setMessages(prev => [...prev, {
           id: getNextMsgId(),
           sender: 'ai',
-          text: result.error || 'I see your photo! Try describing what you want in text for better preference detection.'
+          text: 'I see your photo! Try describing what kind of food you\'re in the mood for.'
         }]);
       }
 
@@ -461,7 +554,7 @@ export function MultimodalChat({
       addMessageAndSave({
         id: getNextMsgId(),
         sender: 'ai',
-        text: 'Sorry, I had trouble analyzing that image. Please try again.'
+        text: 'I had some trouble with that image. Could you try another photo or describe what you\'re looking for?'
       });
     }
   };
@@ -696,9 +789,7 @@ export function MultimodalChat({
       addMessageAndSave({
         id: getNextMsgId(),
         sender: 'ai',
-        text: isBackendDown
-          ? '⚠️ Backend server not running. Please start the Python backend: cd backend && python main.py'
-          : `Sorry, I encountered an error: ${errorMsg}. Please try again.`
+        text: 'I\'m having a little trouble right now. Could you try asking again in a moment?'
       });
     }
   };
@@ -800,7 +891,9 @@ export function MultimodalChat({
                           className="w-32 h-32 rounded-lg object-cover mb-2"
                         />
                       )}
-                      <p className="text-base leading-relaxed">{msg.text}</p>
+                      <div className="text-base leading-relaxed">
+                        {msg.sender === 'ai' ? renderMarkdown(msg.text) : msg.text}
+                      </div>
                     </div>
                   </motion.div>
                 ))}
@@ -997,7 +1090,9 @@ export function MultimodalChat({
                         fontWeight: msg.sender === 'ai' ? 500 : 400
                       }}
                     >
-                      {msg.text}
+                      <div className="leading-relaxed">
+                        {msg.sender === 'ai' ? renderMarkdown(msg.text) : msg.text}
+                      </div>
                     </div>
                   </motion.div>
                 ))}

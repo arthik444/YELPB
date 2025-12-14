@@ -30,6 +30,7 @@ export function VoiceMode({ isOpen, onClose, onTranscription, onAIResponse, onPr
     const animationFrameRef = useRef<number | null>(null);
     const isRecordingRef = useRef<boolean>(false);
     const lastValidTranscriptionRef = useRef<boolean>(false); // Track if last transcription was valid
+    const isOpenRef = useRef<boolean>(isOpen); // Track open state for closures
 
     const SILENCE_THRESHOLD = 15; // Audio level below this is considered silence
     const SILENCE_DURATION = 2000; // Stop after 2 seconds of silence
@@ -43,18 +44,49 @@ export function VoiceMode({ isOpen, onClose, onTranscription, onAIResponse, onPr
     }, []);
 
     const cleanup = () => {
+        console.log('🎤 Cleanup: Releasing microphone...');
+
+        // Stop animation frame
         if (animationFrameRef.current) {
             cancelAnimationFrame(animationFrameRef.current);
+            animationFrameRef.current = null;
         }
+
+        // Clear silence timer
         if (silenceTimerRef.current) {
             clearTimeout(silenceTimerRef.current);
+            silenceTimerRef.current = null;
         }
+
+        // Stop media recorder
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            try {
+                mediaRecorderRef.current.stop();
+            } catch (e) {
+                // Already stopped
+            }
+        }
+        mediaRecorderRef.current = null;
+
+        // Close audio context
         if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
             audioContextRef.current.close().catch(() => { });
         }
+        audioContextRef.current = null;
+        analyserRef.current = null;
+
+        // CRITICAL: Stop all microphone tracks to release the mic
         if (streamRef.current) {
-            streamRef.current.getTracks().forEach(track => track.stop());
+            streamRef.current.getTracks().forEach(track => {
+                track.stop();
+                console.log('🎤 Track stopped:', track.kind, track.readyState);
+            });
+            streamRef.current = null;
         }
+
+        // Clear recording flag
+        isRecordingRef.current = false;
+        console.log('🎤 Cleanup complete - microphone released');
     };
 
     // Keep a ref to current voiceState for use in useEffect without causing re-runs
@@ -66,8 +98,23 @@ export function VoiceMode({ isOpen, onClose, onTranscription, onAIResponse, onPr
 
 
     const startListening = async () => {
+        // CRITICAL: Don't start listening if modal is already closed
+        if (!isOpenRef.current) {
+            console.log('🛑 startListening blocked - modal is closed');
+            return;
+        }
+
         try {
+            console.log('🎤 Starting new microphone stream...');
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+            // Double-check modal is still open AFTER getting the stream
+            if (!isOpenRef.current) {
+                console.log('🛑 Modal closed while getting stream - releasing immediately');
+                stream.getTracks().forEach(track => track.stop());
+                return;
+            }
+
             streamRef.current = stream;
 
             // Set up audio analysis for silence detection
@@ -168,6 +215,7 @@ export function VoiceMode({ isOpen, onClose, onTranscription, onAIResponse, onPr
         }
     };
 
+
     const processAudio = async (audioBlob: Blob) => {
         try {
             // Convert audio to base64
@@ -175,34 +223,45 @@ export function VoiceMode({ isOpen, onClose, onTranscription, onAIResponse, onPr
             reader.onload = async () => {
                 const base64Audio = (reader.result as string).split(',')[1];
 
-                // Transcribe audio
-                const transcriptResult = await apiService.transcribeAudio(base64Audio, 'audio/webm');
-                const text = transcriptResult.transcription || '';
+                // Use unified AI-powered voice processing (Gemini)
+                // This intelligently understands context, restaurant names, and infers preferences
+                const result = await apiService.processVoiceUnified(
+                    base64Audio,
+                    'audio/webm',
+                    '', // session context could be passed here if needed
+                    {}  // current preferences could be passed here if needed
+                );
+
+                const text = result.transcription || '';
                 setTranscription(text);
 
+
                 // Track if this was a valid transcription (for restart logic)
-                const isValidTranscription = text &&
+                const isValidTranscription = Boolean(result.success && text &&
                     !text.toLowerCase().includes('no speech') &&
                     !text.toLowerCase().includes('no clear speech') &&
                     !text.toLowerCase().includes('no discernible') &&
                     !text.toLowerCase().includes('typing sound') &&
-                    text.trim().length > 0;
+                    !text.toLowerCase().includes('background noise') &&
+                    !text.toLowerCase().includes('ambient noise') &&
+                    text.trim().length > 0);
                 lastValidTranscriptionRef.current = isValidTranscription;
                 console.log('Transcription valid:', isValidTranscription, 'Text:', text);
 
-                // Only send to chat if it's a valid transcription
+                // Only process if valid transcription
                 if (isValidTranscription) {
                     onTranscription(text);
 
-                    // Analyze for preferences
-                    if (transcriptResult.analysis) {
-                        onPreferencesDetected?.(transcriptResult.analysis);
+                    // AI has detected preferences (e.g., "Taco Bell" -> Mexican, $, fast food)
+                    if (result.detected_preferences && Object.keys(result.detected_preferences).length > 0) {
+                        console.log('AI detected preferences:', result.detected_preferences);
+                        onPreferencesDetected?.(result.detected_preferences);
                     }
 
-                    // Generate AI response (simplified for demo)
-                    const responseText = generateResponse(text, transcriptResult.analysis);
+                    // Use AI-generated response (intelligent, context-aware)
+                    const responseText = result.ai_response || "I'm here to help! What kind of restaurant are you looking for?";
                     setAiResponse(responseText);
-                    onAIResponse(responseText); // Send AI response to chat
+                    onAIResponse(responseText);
 
                     // Convert to speech
                     setVoiceState('speaking');
@@ -220,61 +279,7 @@ export function VoiceMode({ isOpen, onClose, onTranscription, onAIResponse, onPr
         }
     };
 
-    const generateResponse = (text: string, analysis: any): string => {
-        // Parse the text directly for common food-related terms
-        const lowerText = text.toLowerCase();
 
-        // Detect cuisines mentioned in text
-        const cuisineKeywords = ['sushi', 'japanese', 'italian', 'mexican', 'indian', 'chinese', 'thai', 'korean', 'vietnamese', 'pizza', 'burger', 'tacos', 'ramen', 'seafood', 'steakhouse', 'mediterranean', 'greek', 'french', 'spanish'];
-        const detectedCuisines = cuisineKeywords.filter(c => lowerText.includes(c));
-
-        // Detect budget mentioned
-        const budgetMatch = lowerText.match(/\$(\d+)/);
-        const budgetMentioned = budgetMatch ? `$${budgetMatch[1]}` : null;
-
-        // Detect vibe/mood
-        const vibeKeywords = ['casual', 'fancy', 'romantic', 'family', 'quick', 'cozy', 'trendy', 'outdoor'];
-        const detectedVibes = vibeKeywords.filter(v => lowerText.includes(v));
-
-        // Build contextual response
-        const mentions: string[] = [];
-
-        if (detectedCuisines.length > 0) {
-            mentions.push(`${detectedCuisines.join(', ')}`);
-        }
-        if (budgetMentioned) {
-            mentions.push(`around ${budgetMentioned}`);
-        }
-        if (detectedVibes.length > 0) {
-            mentions.push(`something ${detectedVibes.join(', ')}`);
-        }
-
-        if (mentions.length > 0) {
-            return `Perfect! I've noted your preferences: ${mentions.join(', ')}. I'll help you find great options. Is there anything else you'd like to add, or should we start looking?`;
-        }
-
-        // Also check the API analysis
-        const cuisinesFromApi = analysis?.cuisine_preferences?.length > 0;
-        const budgetFromApi = analysis?.price_sensitivity;
-
-        if (cuisinesFromApi || budgetFromApi) {
-            const parts: string[] = [];
-            if (cuisinesFromApi) {
-                parts.push(analysis.cuisine_preferences.join(' or '));
-            }
-            if (budgetFromApi) {
-                parts.push(`${budgetFromApi} budget`);
-            }
-            return `Got it! You're looking for ${parts.join(' with a ')}. Anything else to narrow it down?`;
-        }
-
-        // Default response for greetings or unclear input
-        if (lowerText.includes('hi') || lowerText.includes('hello') || lowerText.includes('hey')) {
-            return "Hi there! I'm here to help you find the perfect restaurant. What are you in the mood for? You can tell me about cuisine type, budget, or vibe.";
-        }
-
-        return "I'm listening! Tell me what kind of food you're craving, your budget, or any preferences you have.";
-    };
 
     const speakResponse = async (text: string) => {
         try {
@@ -352,16 +357,24 @@ export function VoiceMode({ isOpen, onClose, onTranscription, onAIResponse, onPr
                 audioRef.current = audio;
 
                 audio.onended = () => {
-                    console.log('TTS audio ended, waiting before restart...');
+                    console.log('TTS audio ended');
                     URL.revokeObjectURL(audioUrl);
+
+                    // CRITICAL: Check if modal is still open BEFORE doing anything
+                    if (!isOpenRef.current) {
+                        console.log('🛑 Modal is closed - NOT restarting listening');
+                        return;
+                    }
+
                     setVoiceState('idle');
-                    // Always restart after speaking if modal is still open and last transcription was valid
+                    // Only restart if modal is STILL open and last transcription was valid
                     setTimeout(() => {
-                        if (isOpen && lastValidTranscriptionRef.current) {
-                            console.log('Restarting listening...');
+                        // Double-check again after the timeout
+                        if (isOpenRef.current && lastValidTranscriptionRef.current) {
+                            console.log('✅ Restarting listening...');
                             startListening();
                         } else {
-                            console.log('Not restarting - modal closed or invalid transcription');
+                            console.log('🛑 Not restarting - modal closed or invalid transcription');
                         }
                     }, 1000);
                 };
@@ -383,9 +396,14 @@ export function VoiceMode({ isOpen, onClose, onTranscription, onAIResponse, onPr
                     utterance.rate = 1.0;
                     utterance.pitch = 1.0;
                     utterance.onend = () => {
+                        if (!isOpenRef.current) {
+                            console.log('🛑 Modal is closed - NOT restarting listening (speech synthesis)');
+                            return;
+                        }
                         setVoiceState('idle');
                         setTimeout(() => {
-                            if (isOpen && lastValidTranscriptionRef.current) {
+                            if (isOpenRef.current && lastValidTranscriptionRef.current) {
+                                console.log('✅ Restarting listening (speech synthesis)...');
                                 startListening();
                             }
                         }, 1000);
@@ -411,6 +429,11 @@ export function VoiceMode({ isOpen, onClose, onTranscription, onAIResponse, onPr
     };
 
     const handleClose = () => {
+        console.log('🎤 handleClose called - stopping everything');
+
+        // FIRST: Update ref to prevent any callbacks from restarting
+        isOpenRef.current = false;
+
         // Stop media recorder regardless of state
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
             try {
@@ -420,8 +443,10 @@ export function VoiceMode({ isOpen, onClose, onTranscription, onAIResponse, onPr
             }
         }
 
-        // Stop any playing audio
+        // Stop any playing TTS audio and remove event handlers
         if (audioRef.current) {
+            audioRef.current.onended = null; // Remove handler BEFORE pausing
+            audioRef.current.onerror = null;
             audioRef.current.pause();
             audioRef.current = null;
         }
@@ -433,7 +458,6 @@ export function VoiceMode({ isOpen, onClose, onTranscription, onAIResponse, onPr
 
         // Full cleanup - stops mic stream
         cleanup();
-        isRecordingRef.current = false;
 
         setVoiceState('idle');
         setTranscription('');
@@ -456,12 +480,15 @@ export function VoiceMode({ isOpen, onClose, onTranscription, onAIResponse, onPr
 
     // Auto-start listening when opened, cleanup when closed
     useEffect(() => {
+        // Keep ref in sync with prop for closures
+        isOpenRef.current = isOpen;
+
         if (isOpen && voiceStateRef.current === 'idle') {
             startListening();
         } else if (!isOpen) {
-            // Stop recording and cleanup when modal closes
+            // Modal is closing - ensure mic is released immediately
+            console.log('🎤 Modal closing - releasing microphone');
             cleanup();
-            isRecordingRef.current = false;
             setVoiceState('idle');
             setTranscription('');
             setAiResponse('');
@@ -478,13 +505,16 @@ export function VoiceMode({ isOpen, onClose, onTranscription, onAIResponse, onPr
                     exit={{ opacity: 0 }}
                     className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/95 backdrop-blur-xl"
                 >
-                    {/* Close button */}
+                    {/* Close button - solid for visibility */}
                     <motion.button
                         initial={{ opacity: 0, y: -20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.2 }}
                         onClick={handleClose}
-                        className="absolute top-8 right-8 rounded-full p-3 bg-white/10 hover:bg-white/20 transition-colors"
+                        className="absolute top-8 right-8 rounded-full p-3 shadow-lg"
+                        style={{ backgroundColor: '#374151' }}
+                        whileHover={{ scale: 1.1, backgroundColor: '#1f2937' }}
+                        whileTap={{ scale: 0.95 }}
                     >
                         <X className="h-6 w-6 text-white" />
                     </motion.button>
@@ -593,8 +623,8 @@ export function VoiceMode({ isOpen, onClose, onTranscription, onAIResponse, onPr
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.3 }}
-                        className="mt-12 text-2xl text-white font-medium"
-                        style={{ fontFamily: 'Montserrat, sans-serif' }}
+                        className="mt-12 text-2xl font-medium"
+                        style={{ fontFamily: 'Montserrat, sans-serif', color: '#1f2937' }}
                     >
                         {getStatusText()}
                     </motion.p>
@@ -606,8 +636,8 @@ export function VoiceMode({ isOpen, onClose, onTranscription, onAIResponse, onPr
                             animate={{ opacity: 1, y: 0 }}
                             className="mt-6 max-w-md text-center"
                         >
-                            <p className="text-gray-400 text-sm">You said:</p>
-                            <p className="text-white mt-1">{transcription}</p>
+                            <p className="text-sm" style={{ color: '#6b7280' }}>You said:</p>
+                            <p className="mt-1" style={{ color: '#374151' }}>{transcription}</p>
                         </motion.div>
                     )}
 
@@ -618,8 +648,8 @@ export function VoiceMode({ isOpen, onClose, onTranscription, onAIResponse, onPr
                             animate={{ opacity: 1, y: 0 }}
                             className="mt-4 max-w-md text-center"
                         >
-                            <p className="text-orange-400 text-sm">AI:</p>
-                            <p className="text-white/80 mt-1 text-sm">{aiResponse}</p>
+                            <p className="text-orange-500 text-sm font-medium">AI:</p>
+                            <p className="mt-1 text-sm" style={{ color: '#374151' }}>{aiResponse}</p>
                         </motion.div>
                     )}
 
@@ -628,7 +658,8 @@ export function VoiceMode({ isOpen, onClose, onTranscription, onAIResponse, onPr
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ delay: 0.5 }}
-                        className="absolute bottom-12 text-gray-500 text-sm"
+                        className="absolute bottom-12 text-sm"
+                        style={{ color: '#6b7280' }}
                     >
                         {voiceState === 'listening'
                             ? 'Speak naturally — I\'ll respond when you pause'

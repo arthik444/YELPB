@@ -108,6 +108,58 @@ class SessionService {
     }
   }
 
+  // Check if a session exists (for validating room codes)
+  async checkSessionExists(sessionCode: string): Promise<boolean> {
+    const sessionRef = this.getSessionRef(sessionCode);
+    const sessionDoc = await getDoc(sessionRef);
+    return sessionDoc.exists();
+  }
+
+  // Create a new session (only for hosts)
+  async createSession(sessionCode: string, user: SessionUser): Promise<void> {
+    const sessionRef = this.getSessionRef(sessionCode);
+    const userRef = doc(this.getUsersRef(sessionCode), user.id);
+
+    console.log('🔥 [createSession] Creating new session:', sessionCode);
+
+    try {
+      await setDoc(sessionRef, {
+        code: sessionCode,
+        ownerId: user.id,
+        votes: {
+          budget: {},
+          cuisine: {},
+          vibe: {},
+          dietary: {},
+          distance: {}
+        },
+        locked: false,
+        createdAt: Date.now(),
+        users: {},
+        finishedUsers: []
+      });
+      console.log('✅ [createSession] Session created successfully');
+
+      // Add host to the session
+      await this.addUserToMainDoc(sessionCode, user);
+      await setDoc(userRef, user);
+
+      // Add creation activity
+      const activityData = {
+        type: 'join',
+        user: user.name,
+        userColor: user.color,
+        message: 'created the session',
+        timestamp: Date.now()
+      };
+      await addDoc(this.getActivitiesRef(sessionCode), activityData);
+      console.log('✅ [createSession] Host added to session');
+    } catch (error: any) {
+      console.error('❌ [createSession] Error creating session:', error);
+      throw error;
+    }
+  }
+
   // Join a session
   async joinSession(sessionCode: string, user: SessionUser): Promise<void> {
     const sessionRef = this.getSessionRef(sessionCode);
@@ -122,28 +174,13 @@ class SessionService {
     });
 
     try {
-      // Check if session exists, if not create it
+      // Check if session exists - reject if it doesn't
       console.log('🔥 [joinSession] Checking if session exists...');
       const sessionDoc = await getDoc(sessionRef);
 
       if (!sessionDoc.exists()) {
-        console.log('🔥 [joinSession] Session does not exist, creating new session...');
-        await setDoc(sessionRef, {
-          code: sessionCode,
-          ownerId: user.id, // First user to join becomes the owner
-          votes: {
-            budget: {},
-            cuisine: {},
-            vibe: {},
-            dietary: {},
-            distance: {}
-          },
-          locked: false,
-          createdAt: Date.now(),
-          users: {},  // Initialize users object in main doc
-          finishedUsers: []  // Initialize finishedUsers array
-        });
-        console.log('✅ [joinSession] Session created successfully');
+        console.log('❌ [joinSession] Session does not exist, rejecting join');
+        throw new Error('ROOM_NOT_FOUND');
       } else {
         console.log('✅ [joinSession] Session already exists:', sessionDoc.data());
       }
