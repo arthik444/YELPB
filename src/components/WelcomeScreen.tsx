@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UtensilsCrossed } from 'lucide-react';
-import { sessionService } from '../services/sessionService';
 
 interface WelcomeScreenProps {
   onNavigate: (sessionCode: string) => void;
@@ -14,41 +13,20 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
   const [isHost, setIsHost] = useState(false);
   const [userName, setUserName] = useState('');
   const [joinCode, setJoinCode] = useState('');
-  const [error, setError] = useState('');
-  const [isValidating, setIsValidating] = useState(false);
 
   const handleHostSession = () => {
     setIsHost(true);
-    setError('');
     setView('NAME_INPUT');
   };
 
   const handleJoinClick = () => {
     setIsHost(false);
-    setError('');
     setView('JOIN_CODE');
   };
 
-  const handleJoinSession = async () => {
+  const handleJoinSession = () => {
     if (joinCode.trim().length >= 4) {
-      setIsValidating(true);
-      setError('');
-
-      try {
-        // Validate that the room exists before proceeding
-        const exists = await sessionService.checkSessionExists(joinCode.trim().toUpperCase());
-
-        if (exists) {
-          setView('NAME_INPUT');
-        } else {
-          setError('Room not found. Please check the code and try again.');
-        }
-      } catch (err) {
-        console.error('Error validating room:', err);
-        setError('Failed to validate room. Please try again.');
-      } finally {
-        setIsValidating(false);
-      }
+      setView('NAME_INPUT');
     }
   };
 
@@ -57,11 +35,9 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
       if (isHost) {
         const code = Math.random().toString(36).substring(2, 8).toUpperCase();
         localStorage.setItem('userName', userName.trim());
-        localStorage.setItem('isHost', 'true');
         onNavigate(code);
       } else {
         localStorage.setItem('userName', userName.trim());
-        localStorage.setItem('isHost', 'false');
         onNavigate(joinCode.trim().toUpperCase());
       }
     }
@@ -78,14 +54,13 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
 
   const handleCancel = () => {
     setJoinCode('');
-    setError('');
     setView('LANDING');
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col" style={{ backgroundColor: '#ffffff' }}>
+    <div className="h-screen w-full flex flex-col overflow-hidden" style={{ backgroundColor: '#ffffff' }}>
       {/* Header - Professional */}
-      <div className="flex items-center justify-center gap-2.5 px-4 py-5">
+      <div className="flex items-center justify-center gap-2.5 px-4 py-3">
         <div className="flex items-center justify-center" style={{ color: '#F05A28' }}>
           <UtensilsCrossed className="w-6 h-6" strokeWidth={2.5} />
         </div>
@@ -94,46 +69,32 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
         </h1>
       </div>
 
-      {/* Hero Image with Text Overlay - Mobile Optimized */}
-      <div className="relative w-full h-56 overflow-hidden" style={{ backgroundColor: '#f9fafb' }}>
+      {/* Hero Image - Mobile Optimized */}
+      <div className="relative w-full h-[35vh] overflow-hidden" style={{ backgroundColor: '#f9fafb' }}>
         <img
-          src="/dining-vibe.png"
-          alt="Dining together"
+          src="/images/group-dining-hero-tall.png"
+          alt="Group Dining Consensus"
           className="w-full h-full object-cover"
+          style={{ objectPosition: 'center center' }}
         />
-        {/* Gradient Overlay for Text Visibility */}
+        {/* Top fade effect */}
         <div
-          className="absolute inset-0"
+          className="absolute top-0 left-0 right-0 h-20 pointer-events-none"
           style={{
-            background: 'linear-gradient(to bottom, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.6) 100%)'
+            background: 'linear-gradient(to bottom, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0) 100%)'
           }}
         />
-        {/* Headline & Subtitle Overlay */}
-        <div className="absolute inset-0 flex items-center justify-center px-5">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold mb-1.5 leading-tight">
-              <span style={{ color: '#FFFFFF', textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>
-                Dining decisions,
-              </span>
-              <span style={{ color: '#F05A28', textShadow: '0 2px 8px rgba(0,0,0,0.5)' }}>
-                simplified.
-              </span>
-            </h1>
-            <p
-              className="text-sm leading-snug"
-              style={{
-                color: '#F5F5F4',
-                textShadow: '0 1px 4px rgba(0,0,0,0.4)'
-              }}
-            >
-              No more endless group chats. Match, decide, and eat in seconds.
-            </p>
-          </div>
-        </div>
+        {/* Bottom fade effect */}
+        <div
+          className="absolute bottom-0 left-0 right-0 h-20 pointer-events-none"
+          style={{
+            background: 'linear-gradient(to top, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0) 100%)'
+          }}
+        />
       </div>
 
       {/* Main Content - Centered - Mobile Optimized */}
-      <div className="flex-1 flex items-center justify-center px-5 py-6">
+      <div className="flex-1 flex items-center justify-center px-5 py-2">
         <div className="w-full max-w-sm text-center">
           <AnimatePresence mode="wait">
             {/* Landing View */}
@@ -145,11 +106,19 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.2 }}
               >
-                <h2 className="text-3xl font-bold mb-3" style={{ color: '#111827' }}>
-                  Welcome
-                </h2>
-                <p className="text-sm mb-4" style={{ color: '#6b7280' }}>
-                  Start a session or join an existing room
+                <h1 className="text-2xl font-bold mb-2 leading-tight tracking-tight">
+                  <span style={{ color: '#1C1917' }}>
+                    Dining decisions,{' '}
+                  </span>
+                  <span style={{ color: '#F05A28' }}>
+                    simplified.
+                  </span>
+                </h1>
+                <p
+                  className="text-base leading-relaxed"
+                  style={{ color: '#78716c' }}
+                >
+                  No more endless group chats. Match, decide, and eat in seconds.
                 </p>
               </motion.div>
             )}
@@ -163,46 +132,31 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.2 }}
               >
-                <h2 className="text-3xl font-bold mb-3" style={{ color: '#111827' }}>
-                  Join Room
+                <h2 className="text-4xl font-bold mb-2 tracking-tight leading-tight">
+                  <span style={{ color: '#F05A28' }}>Join</span> <span style={{ color: '#1C1917' }}>Room</span>
                 </h2>
-                <p className="text-sm mb-6" style={{ color: '#6b7280' }}>
+                <p className="text-base leading-relaxed mb-6" style={{ color: '#78716c' }}>
                   Enter the 4-6 character room code
                 </p>
 
                 <input
                   type="text"
                   value={joinCode}
-                  onChange={(e) => {
-                    setJoinCode(e.target.value.toUpperCase());
-                    setError(''); // Clear error when user types
-                  }}
+                  onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                   onKeyPress={(e) => e.key === 'Enter' && handleJoinSession()}
                   placeholder="ABCD"
                   maxLength={6}
-                  className="w-full text-center text-3xl font-bold tracking-widest py-5 rounded-lg border-2 focus:outline-none transition-colors"
+                  className="w-full text-center text-3xl font-bold tracking-widest py-5 rounded-xl border-2 focus:outline-none transition-colors"
                   style={{
-                    backgroundColor: '#f9fafb',
-                    color: '#111827',
-                    borderColor: error ? '#ef4444' : '#e5e7eb',
+                    backgroundColor: '#fafaf9',
+                    color: '#1C1917',
+                    borderColor: '#e7e5e4',
                     fontFamily: 'monospace'
                   }}
-                  onFocus={(e) => e.currentTarget.style.borderColor = error ? '#ef4444' : '#f97316'}
-                  onBlur={(e) => e.currentTarget.style.borderColor = error ? '#ef4444' : '#e5e7eb'}
+                  onFocus={(e) => e.currentTarget.style.borderColor = '#f97316'}
+                  onBlur={(e) => e.currentTarget.style.borderColor = '#e5e7eb'}
                   autoFocus
                 />
-
-                {/* Error Message */}
-                {error && (
-                  <motion.p
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mt-3 text-sm font-medium"
-                    style={{ color: '#ef4444' }}
-                  >
-                    {error}
-                  </motion.p>
-                )}
               </motion.div>
             )}
 
@@ -215,10 +169,14 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
                 exit={{ opacity: 0, y: -20 }}
                 transition={{ duration: 0.2 }}
               >
-                <h2 className="text-3xl font-bold mb-3" style={{ color: '#111827' }}>
-                  {isHost ? 'Almost There' : `Joining ${joinCode}`}
+                <h2 className="text-4xl font-bold mb-2 tracking-tight leading-tight">
+                  {isHost ? (
+                    <><span style={{ color: '#F05A28' }}>Almost</span> <span style={{ color: '#1C1917' }}>There</span></>
+                  ) : (
+                    <><span style={{ color: '#F05A28' }}>Joining</span> <span style={{ color: '#1C1917' }}>{joinCode}</span></>
+                  )}
                 </h2>
-                <p className="text-sm mb-6" style={{ color: '#6b7280' }}>
+                <p className="text-base leading-relaxed mb-6" style={{ color: '#78716c' }}>
                   What should we call you?
                 </p>
 
@@ -229,11 +187,11 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
                   onKeyPress={(e) => e.key === 'Enter' && handleContinue()}
                   placeholder="Your name"
                   maxLength={20}
-                  className="w-full text-center text-2xl font-semibold py-5 rounded-lg border-2 focus:outline-none transition-colors"
+                  className="w-full text-center text-2xl font-semibold py-5 rounded-xl border-2 focus:outline-none transition-colors"
                   style={{
-                    backgroundColor: '#f9fafb',
-                    color: '#111827',
-                    borderColor: '#e5e7eb'
+                    backgroundColor: '#fafaf9',
+                    color: '#1C1917',
+                    borderColor: '#e7e5e4'
                   }}
                   onFocus={(e) => e.currentTarget.style.borderColor = '#f97316'}
                   onBlur={(e) => e.currentTarget.style.borderColor = '#e5e7eb'}
@@ -246,7 +204,7 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
       </div>
 
       {/* Bottom Card with Buttons - Mobile Optimized */}
-      <div className="px-5 pb-6">
+      <div className="px-5 pb-4">
         <div
           className="w-full max-w-sm mx-auto bg-white rounded-2xl shadow-lg p-5 space-y-3"
           style={{
@@ -268,7 +226,7 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
               >
                 <button
                   onClick={handleHostSession}
-                  className="w-full font-semibold py-4 rounded-xl transition-colors shadow-sm"
+                  className="w-full font-bold text-base py-4 rounded-xl transition-colors shadow-sm tracking-tight"
                   style={{ backgroundColor: '#f97316', color: '#ffffff' }}
                   onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#ea580c'}
                   onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f97316'}
@@ -277,7 +235,7 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
                 </button>
                 <button
                   onClick={handleJoinClick}
-                  className="w-full font-semibold py-4 rounded-xl transition-colors"
+                  className="w-full font-bold text-base py-4 rounded-xl transition-colors tracking-tight"
                   style={{ backgroundColor: '#f3f4f6', color: '#111827' }}
                   onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e5e7eb'}
                   onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
@@ -299,8 +257,7 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
               >
                 <button
                   onClick={handleCancel}
-                  disabled={isValidating}
-                  className="flex-1 font-semibold py-4 rounded-xl transition-colors disabled:opacity-50"
+                  className="flex-1 font-bold text-base py-4 rounded-xl transition-colors tracking-tight"
                   style={{ backgroundColor: '#f3f4f6', color: '#111827' }}
                   onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e5e7eb'}
                   onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
@@ -309,20 +266,20 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
                 </button>
                 <button
                   onClick={handleJoinSession}
-                  disabled={joinCode.length < 4 || isValidating}
-                  className="flex-1 font-semibold py-4 rounded-xl transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={joinCode.length < 4}
+                  className="flex-1 font-bold text-base py-4 rounded-xl transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed tracking-tight"
                   style={{
-                    backgroundColor: joinCode.length < 4 || isValidating ? '#fdba74' : '#f97316',
+                    backgroundColor: joinCode.length < 4 ? '#fdba74' : '#f97316',
                     color: '#ffffff'
                   }}
                   onMouseEnter={(e) => {
-                    if (joinCode.length >= 4 && !isValidating) e.currentTarget.style.backgroundColor = '#ea580c';
+                    if (joinCode.length >= 4) e.currentTarget.style.backgroundColor = '#ea580c';
                   }}
                   onMouseLeave={(e) => {
-                    if (joinCode.length >= 4 && !isValidating) e.currentTarget.style.backgroundColor = '#f97316';
+                    if (joinCode.length >= 4) e.currentTarget.style.backgroundColor = '#f97316';
                   }}
                 >
-                  {isValidating ? 'Checking...' : 'Continue'}
+                  Continue
                 </button>
               </motion.div>
             )}
@@ -339,7 +296,7 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
               >
                 <button
                   onClick={handleBack}
-                  className="flex-1 font-semibold py-4 rounded-xl transition-colors"
+                  className="flex-1 font-bold text-base py-4 rounded-xl transition-colors tracking-tight"
                   style={{ backgroundColor: '#f3f4f6', color: '#111827' }}
                   onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e5e7eb'}
                   onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
@@ -349,7 +306,7 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
                 <button
                   onClick={handleContinue}
                   disabled={userName.trim().length < 2}
-                  className="flex-1 font-semibold py-4 rounded-xl transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 font-bold text-base py-4 rounded-xl transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed tracking-tight"
                   style={{
                     backgroundColor: userName.trim().length < 2 ? '#fdba74' : '#f97316',
                     color: '#ffffff'
