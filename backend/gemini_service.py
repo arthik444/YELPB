@@ -314,21 +314,43 @@ class GeminiService:
         """
         try:
             prompt = f"""
-            Analyze this user message and extract restaurant preferences ONLY.
+            Analyze this user message and extract restaurant preferences.
 
             User message: "{text_query}"
 
-            Extract the following if mentioned:
-            - cuisine_preferences: array of cuisine types (e.g., ["Italian", "Japanese"])
-            - price_range: one of "$", "$$", "$$$", "$$$$" based on keywords like cheap/expensive/moderate
-            - ambiance_preferences: dining vibe (e.g., "Casual", "Romantic", "Trendy", "Fine Dining")
-            - dietary_restrictions: array of dietary needs (e.g., ["Vegetarian", "Vegan", "Gluten-Free"])
-            - user_intent: brief summary of what they're looking for
+            CRITICAL: Extract any preferences mentioned, even if stated very briefly:
+            
+            - cuisine_preferences: array of cuisine types mentioned (e.g., ["Italian", "Chinese", "Japanese"])
+              Examples: "Chinese", "I want Chinese", "chinese food" → ["Chinese"]
+              
+            - price_range: one of "$", "$$", "$$$", "$$$$"
+              Examples: "cheap", "budget" → "$", "moderate" → "$$", "fancy", "expensive" → "$$$"
+              
+            - ambiance_preferences: THE VIBE - one of: "Casual", "Romantic", "Trendy", "Fine Dining", "Cozy", "Lively", "Family-Friendly"
+              EXAMPLES THAT MUST BE DETECTED:
+              * "lively" → "Lively"
+              * "Vibe as lively" → "Lively"
+              * "set vibe to lively" → "Lively"
+              * "something lively" → "Lively"
+              * "need something lively" → "Lively"
+              * "Lock it" after mentioning lively → "Lively"
+              * "classy" → "Fine Dining"
+              * "romantic" → "Romantic"
+              * "chill", "casual" → "Casual"
+              * "cozy" → "Cozy"
+              * "trendy", "hip" → "Trendy"
+              
+            - dietary_restrictions: array of dietary needs (e.g., ["Vegetarian", "Vegan"])
+            
+            - user_intent: brief summary
 
-            IMPORTANT: Only extract preferences that are explicitly mentioned. Don't make assumptions.
-            If nothing is mentioned, return empty arrays/null values.
+            RULES:
+            1. If the user says a vibe word directly (lively, casual, romantic, etc.), ALWAYS return it in ambiance_preferences
+            2. Short messages like "lively" or "Vibe as lively" ARE valid - extract them!
+            3. "Yes", "Lock it", "Set that" after a previous mention means confirm the last discussed preference
+            4. Never return empty if a preference word is clearly in the message
 
-            Format response as JSON with these fields only.
+            Return JSON with these exact fields.
             """
 
             response = self.client.models.generate_content(
@@ -340,7 +362,8 @@ class GeminiService:
             )
 
             result = response.text
-            logger.info(f"Preferences analyzed: {text_query}")
+            logger.info(f"Preferences analyzed for message: '{text_query}'")
+            logger.info(f"Raw analysis result: {result}")
 
             return {
                 "success": True,
@@ -357,7 +380,8 @@ class GeminiService:
         self,
         user_message: str,
         session_context: str = "",
-        current_preferences: dict = None
+        current_preferences: dict = None,
+        conversation_history: list = None
     ) -> Dict[str, Any]:
         """
         Pure conversational AI for preference-setting chat
@@ -366,12 +390,24 @@ class GeminiService:
             user_message: User's chat message
             session_context: Context about the session (users, votes, etc.)
             current_preferences: Current preference settings
+            conversation_history: List of previous messages for context
             
         Returns:
             Dictionary with AI response message
         """
         try:
             prefs = current_preferences or {}
+            history = conversation_history or []
+            
+            # Build conversation history string
+            history_str = ""
+            if history:
+                history_str = "\n\nRECENT CONVERSATION HISTORY:\n"
+                for msg in history[-8:]:  # Last 8 messages for context
+                    role = "User" if msg.get("role") == "user" else "Assistant"
+                    content = msg.get("content", "")[:200]  # Truncate long messages
+                    history_str += f"{role}: {content}\n"
+                history_str += "\n"
             
             system_prompt = f"""You are the Group Consensus Facilitator for CommonPlate, a collaborative restaurant selection app.
 
@@ -381,10 +417,11 @@ YOUR MISSION:
 - Suggest compromises when preferences conflict
 - Help resolve DISTANCE conflicts when group members are spread out
 - Keep the energy fun and the conversation moving toward a decision
+- ACKNOWLEDGE when you have already set a preference and confirm it was set
 
 SESSION CONTEXT:
 {session_context or 'Solo user - help them pick preferences!'}
-
+{history_str}
 CURRENT LOCKED PREFERENCES:
 - Cuisine: {prefs.get('cuisine', 'Not decided')}
 - Budget: {prefs.get('budget', 'Not decided')} (Options: $, $$, $$$, $$$$)
@@ -392,19 +429,18 @@ CURRENT LOCKED PREFERENCES:
 - Dietary: {prefs.get('dietary', 'None set')} (Options: None, Vegetarian, Vegan, Gluten-Free, Halal, Kosher)
 - Distance: {prefs.get('distance', 'Not decided')} (Options: 0.5mi, 1mi, 2mi, 5mi, 10mi)
 
+IMPORTANT BEHAVIORS:
+1. When user asks to SET or LOCK a preference, CONFIRM that you've set it: "Done! I've set the vibe to Lively! 🎉"
+2. If a preference was just set in this conversation, acknowledge it confidently
+3. Don't ask "should we lock it?" if user already asked you to lock/set it - just do it and confirm
+4. Reference the conversation history to maintain context
+
 HOW TO FACILITATE CONSENSUS:
 1. If voting data shows agreement: "Great news! Everyone seems to want X! Should we lock that in?"
 2. If there's a split: "I see split votes between X and Y. What if we tried Z as a middle ground?"
 3. If someone is undecided: Ask fun questions like "Pizza or tacos - quick, don't overthink it!"
 4. Point out overlapping preferences: "Sarah and Mike both love Italian - that's 2 votes!"
 5. For deadlocks, suggest creative compromises or coin-flip decisions
-
-DISTANCE FAIRNESS:
-- If users mention being far away or outside the radius, acknowledge it kindly
-- Suggest increasing the distance if needed: "Since Mike is a bit further out, would everyone be okay with a 3mi radius?"
-- Point out that the meeting point is calculated at the center of everyone's locations
-- Frame extra travel positively: "Worth the drive for great food!"
-- If one person needs to travel more, thank them for being flexible
 
 PERSONALITY:
 - Be enthusiastic and encouraging ("Ooh, great choice!")
@@ -686,7 +722,10 @@ Return ONLY valid JSON, no other text."""
         'cozy': 'Cozy', 'lively': 'Lively', 'fine dining': 'Fine Dining',
         'family-friendly': 'Family-Friendly', 'family friendly': 'Family-Friendly',
         'outdoor': 'Outdoor Seating', 'upscale': 'Fine Dining', 'fancy': 'Fine Dining',
-        'quiet': 'Cozy', 'chill': 'Casual', 'fun': 'Lively', 'hip': 'Trendy'
+        'quiet': 'Cozy', 'chill': 'Casual', 'fun': 'Lively', 'hip': 'Trendy',
+        'energetic': 'Lively', 'party': 'Lively', 'vibrant': 'Lively', 'loud': 'Lively',
+        'busy': 'Lively', 'animated': 'Lively', 'upbeat': 'Lively', 'neon': 'Lively',
+        'energy': 'Lively', 'exciting': 'Lively', 'nightlife': 'Lively', 'bar': 'Lively'
     }
     
     DIETARY_MAP = {
@@ -902,7 +941,8 @@ Return ONLY valid JSON, no other text."""
         self,
         user_message: str,
         session_context: str = "",
-        current_preferences: dict = None
+        current_preferences: dict = None,
+        conversation_history: list = None
     ) -> Dict[str, Any]:
         """
         Unified chat: AI response + preference extraction in one call
@@ -951,11 +991,12 @@ Return ONLY valid JSON, no other text."""
                 except json.JSONDecodeError as e:
                     logger.warning(f"Failed to parse preferences from chat: {e}")
             
-            # Step 2: Generate conversational response
+            # Step 2: Generate conversational response with conversation history
             chat_result = await self.chat(
                 user_message=user_message,
                 session_context=session_context,
-                current_preferences=current_preferences or {}
+                current_preferences=current_preferences or {},
+                conversation_history=conversation_history or []
             )
             
             ai_response = chat_result.get("message", "I'm here to help! What are you looking for?")

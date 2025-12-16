@@ -21,10 +21,10 @@ interface LobbyScreenProps {
 }
 
 const budgetOptions = ['$', '$$', '$$$', '$$$$'];
-const cuisineOptions = ['Italian', 'Japanese', 'Mexican', 'French', 'Thai', 'Indian', 'Korean', 'Spanish'];
-const vibeOptions = ['Casual', 'Fine Dining', 'Trendy', 'Cozy', 'Lively', 'Romantic', 'Family-Friendly'];
-const dietaryOptions = ['None', 'Vegetarian', 'Vegan', 'Gluten-Free', 'Halal', 'Kosher'];
-const distanceOptions = ['0.5 mi', '1 mi', '2 mi', '5 mi', '10 mi'];
+const cuisineOptions = ['Italian', 'Japanese', 'Mexican', 'French', 'Thai', 'Indian', 'Korean', 'Spanish', 'Other'];
+const vibeOptions = ['Casual', 'Fine Dining', 'Trendy', 'Cozy', 'Lively', 'Romantic', 'Family-Friendly', 'Other'];
+const dietaryOptions = ['None', 'Vegetarian', 'Vegan', 'Gluten-Free', 'Halal', 'Kosher', 'Other'];
+const distanceOptions = ['0.5 mi', '1 mi', '2 mi', '5 mi', '10 mi', 'Any'];
 
 const userColors = [
   'from-orange-400 to-orange-600',
@@ -57,6 +57,12 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
   const [vibe, setVibe] = useState('');
   const [dietary, setDietary] = useState('None');
   const [distance, setDistance] = useState('2 mi');
+  // Custom text inputs for "Other" options
+  const [customCuisine, setCustomCuisine] = useState('');
+  const [customVibe, setCustomVibe] = useState('');
+  const [customDietary, setCustomDietary] = useState('');
+  // Store unmatched AI-detected preferences to include in Yelp search
+  const [unmatchedPreferences, setUnmatchedPreferences] = useState<string[]>([]);
   const [bookingDate, setBookingDate] = useState('');
   const [bookingTime, setBookingTime] = useState('19:00');
   const [partySize, setPartySize] = useState(2);
@@ -124,7 +130,7 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
   });
 
   // Get current user's location for the group map
-  const { location: userLocation, requestLocation } = useGeolocation(true);
+  const { location: userLocation, requestLocation, loading: locationLoading, error: locationError, permissionStatus } = useGeolocation(true);
 
   // Convert distance string to miles number for map
   const distanceToMiles = (dist: string): number => {
@@ -132,23 +138,53 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
     return match ? parseFloat(match[1]) : 2;
   };
 
-  // Generate user locations for map (using current user + simulated positions for demo)
-  const mapUsers = onlineUsers.map((user, index) => ({
-    id: user.id,
-    name: user.name,
-    color: user.color.includes('orange') ? '#F97316' :
-      user.color.includes('purple') ? '#a855f7' :
-        user.color.includes('blue') ? '#3b82f6' :
-          user.color.includes('green') ? '#22c55e' :
-            user.color.includes('yellow') ? '#eab308' : '#ec4899',
-    latitude: userLocation?.latitude
-      ? userLocation.latitude + (Math.random() - 0.5) * 0.02 * (index + 1)
-      : 37.7749 + (Math.random() - 0.5) * 0.02 * (index + 1),
-    longitude: userLocation?.longitude
-      ? userLocation.longitude + (Math.random() - 0.5) * 0.02 * (index + 1)
-      : -122.4194 + (Math.random() - 0.5) * 0.02 * (index + 1),
-    isCurrentUser: user.id === currentUserId
-  }));
+  // San Francisco fallback coordinates
+  const SF_FALLBACK = { latitude: 37.7749, longitude: -122.4194 };
+
+  // Check if anyone has shared location
+  const usersWithLocation = onlineUsers.filter(user => user.latitude && user.longitude);
+  const usingFallbackLocation = usersWithLocation.length === 0;
+
+  // Generate user locations for map (using real locations from Firebase, or fallback to SF)
+  const mapUsers = usingFallbackLocation
+    ? onlineUsers.map((user, index) => ({
+      id: user.id,
+      name: user.name,
+      color: user.color.includes('orange') ? '#F97316' :
+        user.color.includes('purple') ? '#a855f7' :
+          user.color.includes('blue') ? '#3b82f6' :
+            user.color.includes('green') ? '#22c55e' :
+              user.color.includes('yellow') ? '#eab308' : '#ec4899',
+      // Spread users around SF center for demo
+      latitude: SF_FALLBACK.latitude + (Math.random() - 0.5) * 0.02 * (index + 1),
+      longitude: SF_FALLBACK.longitude + (Math.random() - 0.5) * 0.02 * (index + 1),
+      isCurrentUser: user.id === currentUserId
+    }))
+    : usersWithLocation.map((user) => ({
+      id: user.id,
+      name: user.name,
+      color: user.color.includes('orange') ? '#F97316' :
+        user.color.includes('purple') ? '#a855f7' :
+          user.color.includes('blue') ? '#3b82f6' :
+            user.color.includes('green') ? '#22c55e' :
+              user.color.includes('yellow') ? '#eab308' : '#ec4899',
+      latitude: user.latitude!,
+      longitude: user.longitude!,
+      isCurrentUser: user.id === currentUserId
+    }));
+
+  // Save user's location to Firebase when obtained
+  useEffect(() => {
+    if (userLocation?.latitude && userLocation?.longitude) {
+      console.log('📍 Saving location to Firebase:', userLocation);
+      sessionService.updateUserLocation(
+        sessionCode,
+        currentUserId,
+        userLocation.latitude,
+        userLocation.longitude
+      );
+    }
+  }, [userLocation, sessionCode, currentUserId]);
 
   // Firebase: Join session and subscribe to updates
   useEffect(() => {
@@ -393,7 +429,7 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
       <motion.div
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="relative z-20 flex-shrink-0 border-b px-4 py-3"
+        className="relative z-[1000] flex-shrink-0 border-b px-4 py-3"
         style={{ borderColor: '#e5e7eb', backgroundColor: '#ffffff' }}
       >
         <div className="flex items-center justify-between">
@@ -422,38 +458,72 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -10, scale: 0.95 }}
                   className="absolute top-full left-0 mt-2 rounded-xl border shadow-lg overflow-hidden"
-                  style={{ backgroundColor: '#ffffff', borderColor: '#d1d5db', minWidth: '200px', zIndex: 60 }}
+                  style={{ backgroundColor: '#ffffff', borderColor: '#d1d5db', minWidth: '200px', zIndex: 100 }}
                 >
                   <div className="px-3 py-2 border-b" style={{ backgroundColor: '#f9fafb', borderColor: '#e5e7eb' }}>
                     <span className="text-xs font-bold" style={{ color: '#6b7280' }}>ONLINE USERS</span>
                   </div>
                   <div className="max-h-64 overflow-y-auto">
-                    {onlineUsers.map((user, index) => (
-                      <motion.div
-                        key={user.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.05 }}
-                        className="flex items-center gap-3 px-3 py-2.5 border-b last:border-b-0 transition-colors"
-                        style={{ borderColor: '#f3f4f6' }}
-                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9fafb'}
-                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ffffff'}
-                      >
-                        <div className="relative">
-                          <div
-                            className={`h-8 w-8 rounded-full bg-gradient-to-br ${user.color} flex items-center justify-center ring-2 ring-white`}
-                          >
-                            <span className="text-xs font-bold text-white">
-                              {user.name.substring(0, 2).toUpperCase()}
-                            </span>
+                    {onlineUsers.map((user, index) => {
+                      const isCurrentUserItem = user.id === currentUserId;
+                      // Define solid background colors for better visibility
+                      const avatarColors: Record<string, string> = {
+                        'from-orange-400 to-orange-600': '#f97316',
+                        'from-teal-400 to-teal-600': '#14b8a6',
+                        'from-purple-400 to-purple-600': '#a855f7',
+                        'from-amber-400 to-amber-600': '#f59e0b',
+                        'from-rose-400 to-rose-600': '#f43f5e',
+                        'from-indigo-400 to-indigo-600': '#6366f1',
+                        'from-emerald-400 to-emerald-600': '#10b981',
+                        'from-sky-400 to-sky-600': '#0ea5e9'
+                      };
+                      const bgColor = avatarColors[user.color] || '#f97316';
+
+                      return (
+                        <motion.div
+                          key={user.id}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                          className="flex items-center gap-3 px-3 py-2.5 border-b last:border-b-0 transition-colors"
+                          style={{
+                            borderColor: '#f3f4f6',
+                            backgroundColor: isCurrentUserItem ? '#fff7ed' : '#ffffff'
+                          }}
+                        >
+                          <div className="relative">
+                            <div
+                              className="h-12 w-12 rounded-full flex items-center justify-center shadow-lg"
+                              style={{
+                                backgroundColor: bgColor,
+                                border: isCurrentUserItem ? '3px solid #f97316' : '2px solid white'
+                              }}
+                            >
+                              <span className="text-lg font-bold text-white" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
+                                {user.name.substring(0, 1).toUpperCase()}
+                              </span>
+                            </div>
+                            <div
+                              className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 bg-green-500"
+                              style={{ borderColor: isCurrentUserItem ? '#fff7ed' : '#ffffff' }}
+                            />
                           </div>
-                          <div className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 bg-green-500" style={{ borderColor: '#ffffff' }} />
-                        </div>
-                        <span className="text-sm font-medium" style={{ color: '#1C1917' }}>
-                          {user.name}
-                        </span>
-                      </motion.div>
-                    ))}
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold" style={{ color: '#1C1917' }}>
+                              {user.name}
+                            </span>
+                            {isCurrentUserItem && (
+                              <span
+                                className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                                style={{ backgroundColor: '#f97316', color: '#ffffff' }}
+                              >
+                                YOU
+                              </span>
+                            )}
+                          </div>
+                        </motion.div>
+                      );
+                    })}
                   </div>
                 </motion.div>
               )}
@@ -498,6 +568,12 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
             transition={{ duration: 0.2 }}
             className="flex flex-col flex-1 overflow-y-auto min-h-0 scrollbar-hide"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            onScroll={() => {
+              // Close online users dropdown when scrolling
+              if (showOnlineUsers) {
+                setShowOnlineUsers(false);
+              }
+            }}
           >
             {/* Activity Feed - Light Mode */}
             <motion.div
@@ -699,7 +775,8 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
                                 <motion.div
                                   initial={{ scale: 0 }}
                                   animate={{ scale: 1 }}
-                                  className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white ring-2 ring-white"
+                                  className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-white ring-2 ring-white"
+                                  style={{ backgroundColor: '#f97316' }}
                                 >
                                   {voteCount}
                                 </motion.div>
@@ -708,6 +785,24 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
                           );
                         })}
                       </div>
+                      {/* Custom input when Other is selected */}
+                      {cuisine === 'Other' && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="mt-2"
+                        >
+                          <input
+                            type="text"
+                            placeholder="Type your cuisine preference..."
+                            value={customCuisine}
+                            onChange={(e) => setCustomCuisine(e.target.value)}
+                            className="w-full rounded-lg border px-3 py-2 text-sm font-medium outline-none transition-all focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                            style={{ backgroundColor: '#ffffff', borderColor: '#d1d5db', color: '#374151' }}
+                          />
+                        </motion.div>
+                      )}
                     </div>
                   )}
                 </CompactPreference>
@@ -755,7 +850,8 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
                                 <motion.div
                                   initial={{ scale: 0 }}
                                   animate={{ scale: 1 }}
-                                  className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white ring-2 ring-white"
+                                  className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-white ring-2 ring-white"
+                                  style={{ backgroundColor: '#f97316' }}
                                 >
                                   {voteCount}
                                 </motion.div>
@@ -764,6 +860,24 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
                           );
                         })}
                       </div>
+                      {/* Custom input when Other is selected */}
+                      {vibe === 'Other' && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="mt-2"
+                        >
+                          <input
+                            type="text"
+                            placeholder="Type your vibe preference..."
+                            value={customVibe}
+                            onChange={(e) => setCustomVibe(e.target.value)}
+                            className="w-full rounded-lg border px-3 py-2 text-sm font-medium outline-none transition-all focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                            style={{ backgroundColor: '#ffffff', borderColor: '#d1d5db', color: '#374151' }}
+                          />
+                        </motion.div>
+                      )}
                     </div>
                   )}
                 </CompactPreference>
@@ -810,7 +924,8 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
                               <motion.div
                                 initial={{ scale: 0 }}
                                 animate={{ scale: 1 }}
-                                className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white ring-2 ring-white"
+                                className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-white ring-2 ring-white"
+                                style={{ backgroundColor: '#f97316' }}
                               >
                                 {voteCount}
                               </motion.div>
@@ -865,7 +980,8 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
                                 <motion.div
                                   initial={{ scale: 0 }}
                                   animate={{ scale: 1 }}
-                                  className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white ring-2 ring-white"
+                                  className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-white ring-2 ring-white"
+                                  style={{ backgroundColor: '#f97316' }}
                                 >
                                   {voteCount}
                                 </motion.div>
@@ -874,6 +990,24 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
                           );
                         })}
                       </div>
+                      {/* Custom input when Other is selected */}
+                      {dietary === 'Other' && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="mt-2"
+                        >
+                          <input
+                            type="text"
+                            placeholder="Type your dietary preference..."
+                            value={customDietary}
+                            onChange={(e) => setCustomDietary(e.target.value)}
+                            className="w-full rounded-lg border px-3 py-2 text-sm font-medium outline-none transition-all focus:border-orange-500 focus:ring-1 focus:ring-orange-500"
+                            style={{ backgroundColor: '#ffffff', borderColor: '#d1d5db', color: '#374151' }}
+                          />
+                        </motion.div>
+                      )}
                     </div>
                   )}
                 </CompactPreference>
@@ -1030,17 +1164,69 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="flex-1 overflow-hidden h-[calc(100%-80px)]"
+            className="flex-1 overflow-hidden h-[calc(100%-80px)] relative"
+            onClick={() => {
+              // Close online users dropdown when clicking on map
+              if (showOnlineUsers) {
+                setShowOnlineUsers(false);
+              }
+            }}
           >
             <GroupMap
               users={mapUsers}
-              currentUserLocation={userLocation ? {
-                latitude: userLocation.latitude,
-                longitude: userLocation.longitude
-              } : undefined}
               distanceRadius={distanceToMiles(distance)}
               mobileView={true}
             />
+
+            {/* Location/Fallback banner - consolidated */}
+            {(!userLocation || permissionStatus === 'denied') && !locationLoading && (
+              <motion.div
+                initial={{ y: -20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                className="absolute top-4 left-4 right-4 z-[1001]"
+              >
+                <div
+                  className="rounded-xl border shadow-lg px-4 py-3 flex items-center gap-3"
+                  style={{ backgroundColor: '#fef3c7', borderColor: '#fcd34d' }}
+                >
+                  <MapPin className="h-5 w-5 flex-shrink-0" style={{ color: '#d97706' }} />
+                  <div className="flex flex-col">
+                    <span className="text-sm font-semibold" style={{ color: '#92400e' }}>
+                      {permissionStatus === 'denied' ? 'Location access denied' : 'No location shared'}
+                    </span>
+                    <span className="text-xs" style={{ color: '#a16207' }}>
+                      Using San Francisco for demo
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => requestLocation()}
+                    className="ml-auto text-xs font-bold px-3 py-1.5 rounded-lg flex-shrink-0"
+                    style={{ backgroundColor: '#f97316', color: '#ffffff' }}
+                  >
+                    {permissionStatus === 'denied' ? 'Try Again' : 'Share Location'}
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Loading location indicator */}
+            {locationLoading && (
+              <motion.div
+                initial={{ y: -20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                className="absolute top-4 left-4 right-4 z-[1001]"
+              >
+                <div
+                  className="rounded-xl border shadow-lg px-4 py-3 flex items-center gap-3"
+                  style={{ backgroundColor: '#ffffff', borderColor: '#e5e7eb' }}
+                >
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-orange-500 border-t-transparent" />
+                  <span className="text-sm font-medium" style={{ color: '#374151' }}>
+                    Getting your location...
+                  </span>
+                </div>
+              </motion.div>
+            )}
           </motion.div>
         )}
 
@@ -1069,26 +1255,78 @@ export function LobbyScreen({ sessionCode, onNavigate }: LobbyScreenProps) {
               fullScreenMode={true}
               onToggleMinimized={() => { }} // No-op since we're in full screen mode
               onPreferencesDetected={(prefs) => {
+                // Helper to check if a preference matches predefined options
+                const checkAndSetPreference = (
+                  value: string,
+                  options: string[],
+                  setterFn: (v: string) => void,
+                  customSetterFn: (v: string) => void,
+                  category: string
+                ) => {
+                  // Check if the value matches any predefined option (case-insensitive)
+                  const matched = options.find(opt =>
+                    opt.toLowerCase() === value.toLowerCase()
+                  );
+
+                  if (matched) {
+                    // Exact match found - use the predefined option
+                    setterFn(matched);
+                    updateVote(category as any, matched);
+                    addActivity(`AI suggested ${matched} for ${category}`);
+                  } else {
+                    // No match - set to "Other" and store custom value
+                    if (options.includes('Other')) {
+                      setterFn('Other');
+                      customSetterFn(value);
+                      updateVote(category as any, 'Other');
+                      addActivity(`AI suggested custom ${category}: ${value}`);
+                      // Store unmatched preference for Yelp search
+                      setUnmatchedPreferences(prev => {
+                        const newPref = `${category}: ${value}`;
+                        if (!prev.includes(newPref)) {
+                          return [...prev, newPref];
+                        }
+                        return prev;
+                      });
+                    }
+                  }
+                };
+
                 // Auto-populate preferences from AI analysis
                 if (prefs.cuisine) {
-                  setCuisine(prefs.cuisine);
-                  updateVote('cuisine', prefs.cuisine);
-                  addActivity(`AI suggested ${prefs.cuisine} cuisine`);
+                  checkAndSetPreference(
+                    prefs.cuisine,
+                    cuisineOptions,
+                    setCuisine,
+                    setCustomCuisine,
+                    'cuisine'
+                  );
                 }
                 if (prefs.budget) {
-                  setBudget(prefs.budget);
-                  updateVote('budget', prefs.budget);
-                  addActivity(`AI suggested ${prefs.budget} budget`);
+                  // Budget always matches predefined options
+                  if (budgetOptions.includes(prefs.budget)) {
+                    setBudget(prefs.budget);
+                    updateVote('budget', prefs.budget);
+                    addActivity(`AI suggested ${prefs.budget} budget`);
+                  }
                 }
                 if (prefs.vibe) {
-                  setVibe(prefs.vibe);
-                  updateVote('vibe', prefs.vibe);
-                  addActivity(`AI suggested ${prefs.vibe} vibe`);
+                  checkAndSetPreference(
+                    prefs.vibe,
+                    vibeOptions,
+                    setVibe,
+                    setCustomVibe,
+                    'vibe'
+                  );
                 }
                 if (prefs.dietary) {
-                  setDietary(prefs.dietary);
-                  updateVote('dietary', prefs.dietary);
-                  addActivity(`AI suggested ${prefs.dietary} dietary preference`);
+                  checkAndSetPreference(
+                    prefs.dietary,
+                    dietaryOptions,
+                    setDietary,
+                    setCustomDietary,
+                    'dietary'
+                  );
                 }
               }}
               onGetChatHandlers={(handlers) => setChatHandlers(handlers)}
