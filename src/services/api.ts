@@ -397,7 +397,8 @@ class ApiService {
   async chatUnified(
     userMessage: string,
     sessionContext: string = '',
-    currentPreferences: Record<string, string> = {}
+    currentPreferences: Record<string, string> = {},
+    conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> = []
   ): Promise<{
     success: boolean;
     ai_response: string;
@@ -410,6 +411,7 @@ class ApiService {
         user_message: userMessage,
         session_context: sessionContext,
         current_preferences: currentPreferences,
+        conversation_history: conversationHistory,
       }),
     });
   }

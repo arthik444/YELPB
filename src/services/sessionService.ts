@@ -21,6 +21,8 @@ export interface SessionUser {
   name: string;
   color: string;
   joinedAt: number;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface SessionPreferences {
@@ -305,6 +307,39 @@ class SessionService {
       ...activity,
       timestamp: activity.timestamp || Date.now()
     });
+  }
+
+  // Update user's location in Firebase
+  async updateUserLocation(
+    sessionCode: string,
+    userId: string,
+    latitude: number,
+    longitude: number
+  ): Promise<void> {
+    console.log('📍 [updateUserLocation] Updating location:', { sessionCode, userId, latitude, longitude });
+
+    try {
+      // Update in main document
+      const sessionRef = this.getSessionRef(sessionCode);
+      const sessionDoc = await getDoc(sessionRef);
+
+      if (sessionDoc.exists()) {
+        const currentUsers = sessionDoc.data().users || {};
+        if (currentUsers[userId]) {
+          currentUsers[userId].latitude = latitude;
+          currentUsers[userId].longitude = longitude;
+          await updateDoc(sessionRef, { users: currentUsers });
+        }
+      }
+
+      // Update in subcollection
+      const userRef = doc(this.getUsersRef(sessionCode), userId);
+      await updateDoc(userRef, { latitude, longitude });
+
+      console.log('✅ [updateUserLocation] Location updated successfully');
+    } catch (error) {
+      console.error('❌ [updateUserLocation] Error updating location:', error);
+    }
   }
 
 

@@ -489,6 +489,7 @@ class UnifiedChatRequest(BaseModel):
     user_message: str
     session_context: str = ""
     current_preferences: Optional[Dict[str, Any]] = None
+    conversation_history: Optional[List[Dict[str, str]]] = None
 
 
 @app.post("/api/multimodal/voice")
@@ -567,7 +568,8 @@ async def chat_unified(request: UnifiedChatRequest):
         result = await gemini_service.chat_unified(
             user_message=request.user_message,
             session_context=request.session_context,
-            current_preferences=request.current_preferences
+            current_preferences=request.current_preferences,
+            conversation_history=request.conversation_history or []
         )
         
         logger.info(f"Unified chat: {request.user_message[:50]}...")
