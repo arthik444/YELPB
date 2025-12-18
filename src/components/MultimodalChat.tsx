@@ -656,115 +656,30 @@ export function MultimodalChat({
       const sessionContext = buildSessionContext();
       const currentPrefs = preferences || {};
 
-      // Use pure Gemini chat for conversational AI (no Yelp search)
-      const result = await apiService.geminiChat(
+      // Build conversation history from recent messages (last 10 messages for context)
+      const recentMessages = messagesRef.current.slice(-10);
+      const conversationHistory = recentMessages.map(msg => ({
+        role: msg.sender === 'user' ? 'user' as const : 'assistant' as const,
+        content: msg.text
+      }));
+
+      // Use chatUnified which supports conversation history
+      const result = await apiService.chatUnified(
         userMessage,
         sessionContext,
-        currentPrefs
+        currentPrefs,
+        conversationHistory
       );
-
-      // Don't set isTyping to false yet - wait until message is added
 
       console.log('AI conversation response:', result);
 
       // Get the AI's conversational response
-      let aiMessage = result.message || '';
+      let aiMessage = result.ai_response || '';
 
-      // Extract preferences in the background
-      if (onPreferencesDetected) {
-        try {
-          const prefResult = await apiService.analyzePreferences(userMessage);
-          console.log('Preference extraction:', prefResult);
-
-          let detectedPrefs: any = {};
-
-          if (prefResult.success && prefResult.result) {
-            const analysis = JSON.parse(prefResult.result);
-
-            // Map cuisine preferences
-            if (Array.isArray(analysis.cuisine_preferences) && analysis.cuisine_preferences.length > 0) {
-              const cuisineMap: Record<string, string> = {
-                'italian': 'Italian',
-                'japanese': 'Japanese',
-                'mexican': 'Mexican',
-                'french': 'French',
-                'thai': 'Thai',
-                'indian': 'Indian',
-                'korean': 'Korean',
-                'spanish': 'Spanish',
-                'chinese': 'Chinese',
-                'sushi': 'Japanese',
-                'ramen': 'Japanese',
-                'pasta': 'Italian',
-                'pizza': 'Italian',
-                'tacos': 'Mexican',
-                'curry': 'Indian'
-              };
-
-              const firstCuisine = String(analysis.cuisine_preferences[0]).toLowerCase();
-              detectedPrefs.cuisine = cuisineMap[firstCuisine] || analysis.cuisine_preferences[0];
-            }
-
-            // Map price range
-            if (analysis.price_range && typeof analysis.price_range === 'string') {
-              const priceMap: Record<string, string> = {
-                'budget': '$',
-                'cheap': '$',
-                'inexpensive': '$',
-                'moderate': '$$',
-                'mid-range': '$$',
-                'expensive': '$$$',
-                'upscale': '$$$',
-                'luxury': '$$$$',
-                'fine dining': '$$$$'
-              };
-
-              const priceKey = analysis.price_range.toLowerCase();
-              detectedPrefs.budget = priceMap[priceKey] || '$$';
-            }
-
-            // Map ambiance/vibe
-            if (analysis.ambiance_preferences && typeof analysis.ambiance_preferences === 'string') {
-              const vibeMap: Record<string, string> = {
-                'casual': 'Casual',
-                'fine dining': 'Fine Dining',
-                'trendy': 'Trendy',
-                'cozy': 'Cozy',
-                'lively': 'Lively',
-                'romantic': 'Romantic',
-                'family-friendly': 'Family-Friendly',
-                'family friendly': 'Family-Friendly'
-              };
-
-              const vibeKey = analysis.ambiance_preferences.toLowerCase();
-              detectedPrefs.vibe = vibeMap[vibeKey] || analysis.ambiance_preferences;
-            }
-
-            // Map dietary requirements
-            if (Array.isArray(analysis.dietary_requirements) && analysis.dietary_requirements.length > 0) {
-              const dietaryMap: Record<string, string> = {
-                'vegetarian': 'Vegetarian',
-                'vegan': 'Vegan',
-                'gluten-free': 'Gluten-Free',
-                'gluten free': 'Gluten-Free',
-                'halal': 'Halal',
-                'kosher': 'Kosher'
-              };
-
-              const firstDietary = String(analysis.dietary_requirements[0]).toLowerCase();
-              detectedPrefs.dietary = dietaryMap[firstDietary] || analysis.dietary_requirements[0];
-            }
-
-            console.log('Detected preferences:', detectedPrefs);
-
-            // Trigger callback to update preferences silently in background
-            if (Object.keys(detectedPrefs).length > 0) {
-              onPreferencesDetected(detectedPrefs);
-            }
-          }
-        } catch (error) {
-          console.error('Error extracting preferences:', error);
-        }
+      // Apply detected preferences directly (already mapped by backend)
+      if (result.detected_preferences && Object.keys(result.detected_preferences).length > 0 && onPreferencesDetected) {
+        console.log('Detected preferences from chat:', result.detected_preferences);
+        onPreferencesDetected(result.detected_preferences);
       }
 
       // Fallback if chat didn't return a response

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { UtensilsCrossed } from 'lucide-react';
+import { sessionService } from '../services/sessionService';
 
 interface WelcomeScreenProps {
   onNavigate: (sessionCode: string) => void;
@@ -13,6 +14,8 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
   const [isHost, setIsHost] = useState(false);
   const [userName, setUserName] = useState('');
   const [joinCode, setJoinCode] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleHostSession = () => {
     setIsHost(true);
@@ -24,27 +27,49 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
     setView('JOIN_CODE');
   };
 
-  const handleJoinSession = () => {
+  const handleJoinSession = async () => {
     if (joinCode.trim().length >= 4) {
-      setView('NAME_INPUT');
+      setError('');
+      setIsLoading(true);
+      try {
+        // Check if the room exists before proceeding
+        const exists = await sessionService.checkSessionExists(joinCode.trim().toUpperCase());
+        if (exists) {
+          setView('NAME_INPUT');
+        } else {
+          setError('Room not found. Please check the code.');
+        }
+      } catch (err) {
+        setError('Failed to verify room. Please try again.');
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (userName.trim().length >= 2) {
-      if (isHost) {
-        const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+      setIsLoading(true);
+      try {
         localStorage.setItem('userName', userName.trim());
-        onNavigate(code);
-      } else {
-        localStorage.setItem('userName', userName.trim());
-        onNavigate(joinCode.trim().toUpperCase());
+        localStorage.setItem('isHost', isHost ? 'true' : 'false');
+
+        if (isHost) {
+          const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+          onNavigate(code);
+        } else {
+          onNavigate(joinCode.trim().toUpperCase());
+        }
+      } catch (err) {
+        setError('Something went wrong. Please try again.');
+        setIsLoading(false);
       }
     }
   };
 
   const handleBack = () => {
     setUserName('');
+    setError('');
     if (isHost) {
       setView('LANDING');
     } else {
@@ -54,8 +79,10 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
 
   const handleCancel = () => {
     setJoinCode('');
+    setError('');
     setView('LANDING');
   };
+
 
   return (
     <div className="h-screen w-full flex flex-col overflow-hidden" style={{ backgroundColor: '#ffffff' }}>
@@ -142,7 +169,10 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
                 <input
                   type="text"
                   value={joinCode}
-                  onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                  onChange={(e) => {
+                    setJoinCode(e.target.value.toUpperCase());
+                    setError(''); // Clear error when user types
+                  }}
                   onKeyPress={(e) => e.key === 'Enter' && handleJoinSession()}
                   placeholder="ABCD"
                   maxLength={6}
@@ -150,15 +180,28 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
                   style={{
                     backgroundColor: '#fafaf9',
                     color: '#1C1917',
-                    borderColor: '#e7e5e4',
+                    borderColor: error ? '#ef4444' : '#e7e5e4',
                     fontFamily: 'monospace'
                   }}
-                  onFocus={(e) => e.currentTarget.style.borderColor = '#f97316'}
-                  onBlur={(e) => e.currentTarget.style.borderColor = '#e5e7eb'}
+                  onFocus={(e) => e.currentTarget.style.borderColor = error ? '#ef4444' : '#f97316'}
+                  onBlur={(e) => e.currentTarget.style.borderColor = error ? '#ef4444' : '#e5e7eb'}
                   autoFocus
                 />
+
+                {/* Error message */}
+                {error && (
+                  <motion.p
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-sm mt-2 text-center"
+                    style={{ color: '#ef4444' }}
+                  >
+                    {error}
+                  </motion.p>
+                )}
               </motion.div>
             )}
+
 
             {/* Name Input View */}
             {view === 'NAME_INPUT' && (
@@ -257,7 +300,8 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
               >
                 <button
                   onClick={handleCancel}
-                  className="flex-1 font-bold text-base py-4 rounded-xl transition-colors tracking-tight"
+                  disabled={isLoading}
+                  className="flex-1 font-bold text-base py-4 rounded-xl transition-colors tracking-tight disabled:opacity-50"
                   style={{ backgroundColor: '#f3f4f6', color: '#111827' }}
                   onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e5e7eb'}
                   onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
@@ -266,20 +310,20 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
                 </button>
                 <button
                   onClick={handleJoinSession}
-                  disabled={joinCode.length < 4}
+                  disabled={joinCode.length < 4 || isLoading}
                   className="flex-1 font-bold text-base py-4 rounded-xl transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed tracking-tight"
                   style={{
-                    backgroundColor: joinCode.length < 4 ? '#fdba74' : '#f97316',
+                    backgroundColor: joinCode.length < 4 || isLoading ? '#fdba74' : '#f97316',
                     color: '#ffffff'
                   }}
                   onMouseEnter={(e) => {
-                    if (joinCode.length >= 4) e.currentTarget.style.backgroundColor = '#ea580c';
+                    if (joinCode.length >= 4 && !isLoading) e.currentTarget.style.backgroundColor = '#ea580c';
                   }}
                   onMouseLeave={(e) => {
-                    if (joinCode.length >= 4) e.currentTarget.style.backgroundColor = '#f97316';
+                    if (joinCode.length >= 4 && !isLoading) e.currentTarget.style.backgroundColor = '#f97316';
                   }}
                 >
-                  Continue
+                  {isLoading ? 'Checking...' : 'Continue'}
                 </button>
               </motion.div>
             )}
@@ -296,7 +340,8 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
               >
                 <button
                   onClick={handleBack}
-                  className="flex-1 font-bold text-base py-4 rounded-xl transition-colors tracking-tight"
+                  disabled={isLoading}
+                  className="flex-1 font-bold text-base py-4 rounded-xl transition-colors tracking-tight disabled:opacity-50"
                   style={{ backgroundColor: '#f3f4f6', color: '#111827' }}
                   onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e5e7eb'}
                   onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
@@ -305,20 +350,20 @@ export function WelcomeScreen({ onNavigate }: WelcomeScreenProps) {
                 </button>
                 <button
                   onClick={handleContinue}
-                  disabled={userName.trim().length < 2}
+                  disabled={userName.trim().length < 2 || isLoading}
                   className="flex-1 font-bold text-base py-4 rounded-xl transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed tracking-tight"
                   style={{
-                    backgroundColor: userName.trim().length < 2 ? '#fdba74' : '#f97316',
+                    backgroundColor: userName.trim().length < 2 || isLoading ? '#fdba74' : '#f97316',
                     color: '#ffffff'
                   }}
                   onMouseEnter={(e) => {
-                    if (userName.trim().length >= 2) e.currentTarget.style.backgroundColor = '#ea580c';
+                    if (userName.trim().length >= 2 && !isLoading) e.currentTarget.style.backgroundColor = '#ea580c';
                   }}
                   onMouseLeave={(e) => {
-                    if (userName.trim().length >= 2) e.currentTarget.style.backgroundColor = '#f97316';
+                    if (userName.trim().length >= 2 && !isLoading) e.currentTarget.style.backgroundColor = '#f97316';
                   }}
                 >
-                  {isHost ? 'Start' : 'Join'}
+                  {isLoading ? (isHost ? 'Starting...' : 'Joining...') : (isHost ? 'Start' : 'Join')}
                 </button>
               </motion.div>
             )}

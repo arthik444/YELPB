@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Circle, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Circle, Polyline, useMap } from 'react-leaflet';
 import { motion, AnimatePresence } from 'motion/react';
 import { Map, Users, Crosshair, ChevronDown, ChevronUp, AlertTriangle, CheckCircle } from 'lucide-react';
 import L from 'leaflet';
@@ -52,21 +52,26 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
     return R * c;
 }
 
-// Custom colored marker icons
-const createUserIcon = (color: string, isCurrentUser: boolean, isOutsideRadius: boolean) => {
+// Custom colored marker icons with user initials
+const createUserIcon = (color: string, isCurrentUser: boolean, isOutsideRadius: boolean, name: string) => {
     const opacity = isOutsideRadius ? '0.5' : '1';
     const borderStyle = isOutsideRadius ? 'border: 3px dashed #ff6b6b;' : 'border: 3px solid white;';
+    const size = isCurrentUser ? 40 : 32;
+    const fontSize = isCurrentUser ? '14px' : '11px';
+
+    // Get initials (first letter of first name, or first 2 letters)
+    const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
 
     return L.divIcon({
         className: 'custom-marker',
         html: `
       <div style="
-        width: ${isCurrentUser ? '32px' : '24px'};
-        height: ${isCurrentUser ? '32px' : '24px'};
+        width: ${size}px;
+        height: ${size}px;
         border-radius: 50%;
-        background: ${color};
+        background: linear-gradient(135deg, ${color}, ${adjustColor(color, -20)});
         ${borderStyle}
-        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -74,13 +79,29 @@ const createUserIcon = (color: string, isCurrentUser: boolean, isOutsideRadius: 
         ${isCurrentUser ? 'animation: pulse 2s infinite;' : ''}
         ${isOutsideRadius ? 'animation: warning-pulse 1.5s infinite;' : ''}
       ">
-        ${isCurrentUser ? '<div style="width: 8px; height: 8px; background: white; border-radius: 50%;"></div>' : ''}
+        <span style="
+          color: white;
+          font-size: ${fontSize};
+          font-weight: 700;
+          text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+          letter-spacing: -0.5px;
+        ">${initials}</span>
       </div>
     `,
-        iconSize: [isCurrentUser ? 32 : 24, isCurrentUser ? 32 : 24],
-        iconAnchor: [isCurrentUser ? 16 : 12, isCurrentUser ? 16 : 12],
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
     });
 };
+
+// Helper to darken/lighten a hex color
+function adjustColor(color: string, amount: number): string {
+    const hex = color.replace('#', '');
+    const num = parseInt(hex, 16);
+    const r = Math.min(255, Math.max(0, (num >> 16) + amount));
+    const g = Math.min(255, Math.max(0, ((num >> 8) & 0x00FF) + amount));
+    const b = Math.min(255, Math.max(0, (num & 0x0000FF) + amount));
+    return `#${(r << 16 | g << 8 | b).toString(16).padStart(6, '0')}`;
+}
 
 // Component to recenter map when center changes
 function RecenterMap({ center }: { center: [number, number] }) {
@@ -207,29 +228,66 @@ export function GroupMap({
                         pathOptions={{
                             color: fairnessData.allWithinRadius ? '#22c55e' : '#F05A28',
                             fillColor: fairnessData.allWithinRadius ? '#22c55e' : '#F05A28',
-                            fillOpacity: 0.15,
+                            fillOpacity: 0.12,
                             weight: 2,
-                            dashArray: '5, 10'
+                            dashArray: '8, 12',
+                            className: 'radius-circle-pulse'
                         }}
                     />
 
-                    {/* Center point marker */}
+                    {/* Connection lines from users to center */}
+                    {usersWithDistance.map((user) => (
+                        <Polyline
+                            key={`line-${user.id}`}
+                            positions={[
+                                [user.latitude, user.longitude],
+                                [groupCenter.lat, groupCenter.lng]
+                            ]}
+                            pathOptions={{
+                                color: user.isWithinRadius ? user.color : '#ff6b6b',
+                                weight: 2,
+                                opacity: 0.5,
+                                dashArray: '4, 8',
+                                lineCap: 'round'
+                            }}
+                        />
+                    ))}
+
+                    {/* Center point marker - enhanced */}
                     <Marker
                         position={[groupCenter.lat, groupCenter.lng]}
                         icon={L.divIcon({
                             className: 'center-marker',
                             html: `
                                 <div style="
-                                  width: 16px;
-                                  height: 16px;
-                                  background: ${fairnessData.allWithinRadius ? '#22c55e' : '#F05A28'};
-                                  border: 3px solid white;
-                                  border-radius: 50%;
-                                  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-                                "></div>
+                                    position: relative;
+                                    width: 24px;
+                                    height: 24px;
+                                ">
+                                    <div style="
+                                        position: absolute;
+                                        inset: 0;
+                                        background: ${fairnessData.allWithinRadius ? '#22c55e' : '#F05A28'};
+                                        border-radius: 50%;
+                                        opacity: 0.3;
+                                        animation: center-pulse 2s ease-in-out infinite;
+                                    "></div>
+                                    <div style="
+                                        position: absolute;
+                                        top: 50%;
+                                        left: 50%;
+                                        transform: translate(-50%, -50%);
+                                        width: 14px;
+                                        height: 14px;
+                                        background: linear-gradient(135deg, ${fairnessData.allWithinRadius ? '#22c55e' : '#F05A28'}, ${fairnessData.allWithinRadius ? '#16a34a' : '#ea580c'});
+                                        border: 2px solid white;
+                                        border-radius: 50%;
+                                        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                                    "></div>
+                                </div>
                             `,
-                            iconSize: [16, 16],
-                            iconAnchor: [8, 8],
+                            iconSize: [24, 24],
+                            iconAnchor: [12, 12],
                         })}
                     />
 
@@ -238,7 +296,7 @@ export function GroupMap({
                         <Marker
                             key={user.id}
                             position={[user.latitude, user.longitude]}
-                            icon={createUserIcon(user.color, user.isCurrentUser || false, !user.isWithinRadius)}
+                            icon={createUserIcon(user.color, user.isCurrentUser || false, !user.isWithinRadius, user.name)}
                         />
                     ))}
                 </MapContainer>
@@ -304,6 +362,17 @@ export function GroupMap({
                     @keyframes warning-pulse {
                       0%, 100% { box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.4); }
                       50% { box-shadow: 0 0 0 8px rgba(255, 107, 107, 0); }
+                    }
+                    @keyframes center-pulse {
+                      0%, 100% { transform: scale(1); opacity: 0.3; }
+                      50% { transform: scale(1.8); opacity: 0; }
+                    }
+                    .radius-circle-pulse {
+                      animation: radius-breathe 3s ease-in-out infinite;
+                    }
+                    @keyframes radius-breathe {
+                      0%, 100% { stroke-opacity: 0.8; }
+                      50% { stroke-opacity: 0.4; }
                     }
                 `}</style>
             </div>
@@ -429,7 +498,7 @@ export function GroupMap({
                                 <Marker
                                     key={user.id}
                                     position={[user.latitude, user.longitude]}
-                                    icon={createUserIcon(user.color, user.isCurrentUser || false, !user.isWithinRadius)}
+                                    icon={createUserIcon(user.color, user.isCurrentUser || false, !user.isWithinRadius, user.name)}
                                 />
                             ))}
                         </MapContainer>
